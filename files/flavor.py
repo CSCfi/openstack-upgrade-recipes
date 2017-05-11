@@ -713,6 +713,18 @@ def migrate_flavors(ctxt, count, hard_delete=False):
             flavor = Flavor.get_by_id(ctxt, flavor_id)
             flavor_values = {field: getattr(flavor, field)
                              for field in flavor.fields}
+
+
+            # These created_at and updated_at was added because the original values
+            # contained time zones and tried to push does values into the database.
+            # it might be that the output to the database will be incorrect after this.
+            created_at = flavor_values['created_at']
+            flavor_values['created_at'] = created_at.replace(tzinfo=None)
+            if not flavor_values['deleted_at'] == None:
+              deleted_at = flavor_values['deleted_at']
+              flavor_values['deleted_at'] = created_at.replace(tzinfo=None)
+
+
             flavor._flavor_create(ctxt, flavor_values)
             count_hit += 1
             if hard_delete:

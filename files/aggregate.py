@@ -170,6 +170,17 @@ def _aggregate_create_in_db(context, values, metadata=None):
 
     if not aggregate:
         aggregate = api_models.Aggregate()
+
+
+        # These created_at and updated_at was added because the original values
+        # contained time zones and tried to push does values into the database.
+        # it might be that the output to the database will be incorrect after this.
+        created_at=values['created_at'].replace(tzinfo=None)
+        updated_at=values['updated_at'].replace(tzinfo=None)
+        values['created_at']=created_at
+        values['updated_at']=updated_at
+
+
         aggregate.update(values)
         aggregate.save(context.session)
         # We don't want these to be lazy loaded later.  We know there is
