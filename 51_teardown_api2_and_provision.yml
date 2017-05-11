@@ -1,0 +1,33 @@
+---
+# Tear down, provision and populate all API except API 1
+- hosts: api_servers:!api_servers[0]
+  gather_facts: no
+  roles:
+    - { role: kill_libvirt_vm, when: protected == "no" }
+
+- hosts: hypervisors
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Remove api server kickstart files
+      file: path=/tmp/{{ item }}.ks state=absent
+      with_items: api_servers[1]
+    - name: Remove api server install script
+      file: path=/tmp/{{ item }}-install.sh state=absent
+      with_items: api_servers[1]
+
+- hosts: api_servers:!api_servers[0]
+  gather_facts: no
+  roles:
+    - ansible-role-provision-vm
+
+- name: Populate ssh known hosts
+  hosts: api_servers:!api_servers[0]
+  gather_facts: no
+  tasks:
+    - name: Remove old ssh-key from known_hosts
+      local_action: shell ssh-keygen -R {{ inventory_hostname }}
+    - name: SSH to host as root
+      local_action: shell ssh -F ssh.config -o StrictHostKeyChecking=no -o PasswordAuthentication=no {{ inventory_hostname }} -lroot whoami
+    - name: SSH to host user
+      local_action: shell ssh -F ssh.config -o ControlMaster=no -o PasswordAuthentication=no {{ inventory_hostname }} whoami

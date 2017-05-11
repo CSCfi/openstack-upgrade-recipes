@@ -1,0 +1,12 @@
+---
+# Puppetize all API except API 1 and then re puppetize all API
+
+- hosts: api_servers:!api_servers[0]
+  remote_user: root
+  roles:
+    - puppetize
+
+- hosts: api_servers
+  remote_user: root
+  roles:
+    - puppetize

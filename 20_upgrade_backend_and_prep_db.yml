@@ -1,0 +1,55 @@
+---
+# This takes a backup of the databases.
+# yum update and puppetize backend.
+
+- hosts: backend_servers[0]
+  become: yes
+  gather_facts: yes
+  vars:
+    collation_file: '/tmp/updatecollation.txt'
+  tasks:
+  # The mysql_db module does not work without python-mysqldb.
+  # Therefor I will do it by shell
+    - name: install mysql python module
+      yum:
+       name: MySQL-python.x86_64
+       state: installed
+    - name: Dump databases
+      # It is probably not be desireable to dump all databases.
+      mysql_db:
+        state: dump
+        name: all
+        target: "/tmp/liberty{{ ansible_date_time.iso8601_basic_short }}.sql"
+
+    # Upgrade the collations, there is probably a better method
+    - name: Create collation query
+      tags: ['collation']
+      shell: >
+        DATABASES='cell0 cinder glance heat keystone neutron nova nova_api';
+        echo 'SET foreign_key_checks = 0;' > {{ collation_file }};
+        for d in $DATABASES ; do TABLES=$(mysql -N --batch -e "show tables IN ${d};");
+          for t in $TABLES ; do APPEND="alter table ${d}.${t} convert to character SET utf8 COLLATE utf8_general_ci;";
+            echo "$APPEND"  >> "{{ collation_file }}";
+          done;
+        done;
+        echo 'SET foreign_key_checks = 1;' >> "{{ collation_file }}";
+    - name: Alter the db with the new collations
+      tags: ['collation']
+      become: yes
+      shell: cat "{{ collation_file }}" | mysql;
+    - name: Remove the non migrated compute_nodes hosts from the db
+      shell: mysql -e "delete from nova.compute_nodes where deleted_at is not NULL;"
+      become: yes
+
+- hosts: backend_servers
+  become: yes
+  tasks:
+    - name: Yum update
+      # It might be a good idea to add MariaDB*
+      yum: name="*" state=latest exclude="kernel* galera* mongodb*"
+
+- name: puppetize backend
+  hosts: backend_servers
+  become: yes
+  roles:
+    - puppetize

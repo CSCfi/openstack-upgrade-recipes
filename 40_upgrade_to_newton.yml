@@ -1,0 +1,41 @@
+---
+# This play updatets the Nova Mitaka DB to Newton.
+# It requires that the virtualenv is installed
+# See: 03_install_newton_virtualenv.yml 
+
+- name: Setup Env for Newton db upgrades
+  hosts: api_servers[1]
+  gather_facts: no
+  become: yes
+  vars:
+    services:
+      - { name: nova_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf db version" } # Mitaka: 319  Newton: 334
+      - { name: api_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf api_db version" } # Mitaka 7, Newton 21
+    virtualenv: "/root/newton"
+  tasks:
+    - name: Newton db version check pre sync
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.command }}"
+      register: pre_sync
+      with_items: "{{ services }}"
+    - name: Show db version before sync on screen
+      shell: "echo"
+      with_together:
+        - "{{ pre_sync.results|map(attribute='item')|list }}"
+        - "{{ pre_sync.results|map(attribute='stdout')|list }}"
+    - name:  Newton Nova db syncs
+      shell: "source {{ virtualenv }}/bin/activate; nova-manage --config-file={{ virtualenv }}/nova.conf db sync"
+      register: nova_db_version
+    - name: Newton Nova api_db sync
+      shell: "source {{ virtualenv }}/bin/activate; nova-manage --config-file={{ virtualenv }}/nova.conf api_db sync"
+      register: nova_api_version
+    - name: Newton Nova online_data_migration
+      shell: "source {{ virtualenv }}/bin/activate; nova-manage --config-file={{ virtualenv }}/nova.conf db online_data_migrations"
+    - name: Newton db version check after sync
+      shell: "source {{ virtualenv}}/bin/activate;{{ item.command }}"
+      with_items: "{{ services }}"
+      register: post_sync
+    - name: Show db version after sync on screen
+      shell: "echo"
+      with_together:
+        - "{{ post_sync.results|map(attribute='item')|list }}"
+        - "{{ post_sync.results|map(attribute='stdout')|list }}"

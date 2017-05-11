@@ -1,0 +1,59 @@
+---
+# This play updatets the Liberty DB to Mitaka.
+# It requires that the virtualenv is installed and setup.
+# See: 01_install_mitaka_virtualenv.yml 
+
+- name: Setup Env for mitaka db upgrades
+  hosts: api_servers[1]
+  gather_facts: no
+  become: yes
+  vars:
+    virtualenv: "/root/mitaka"
+    services:
+      - name: cinder
+        db_version_cmd: cinder-manage db version # Mitaka: 72 Newton: 79
+        db_sync_cmd: cinder-manage db sync
+      - name : glance
+        db_version_cmd: glance-manage db_version # Mitaka: 44 Newton: 44 (glance is the same in mitaka and newton)
+        db_sync_cmd: glance-manage db_sync
+      - name: heat
+        db_version_cmd: heat-manage db_version # Mitaka: 71 Newton: 73
+        db_sync_cmd: heat-manage db_sync
+      - name : keystone
+        db_version_cmd: keystone-manage db_version # Mitaka: 97 Newton: 109
+        db_sync_cmd: keystone-manage db_sync
+      - name: neutron
+        db_version_cmd: neutron-db-manage current # Mitaka: 4ffceebfcdc , 0e66c5227a8a Newton: 5c85685d616d
+        db_sync_cmd: neutron-db-manage upgrade mitaka # Is running both expand and contract
+      - name: nova
+        db_version_cmd: nova-manage --config-file={{ virtualenv }}/nova.conf db version # Mitaka: 319  Newton: 334
+        db_sync_cmd: nova-manage --config-file={{ virtualenv }}/nova.conf db sync
+      - name: nova_api
+        db_version_cmd: nova-manage --config-file={{ virtualenv }}/nova.conf api_db version # Mitaka 7, Newton 21
+        db_sync_cmd: nova-manage --config-file={{ virtualenv }}/nova.conf api_db sync
+    nova_db_online_migrate_cmd: nova-manage --config-file={{ virtualenv }}/nova.conf db online_data_migrations
+
+  tasks:
+    - name: Mitaka db version check pre sync
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.db_version_cmd }}"
+      register: pre_sync
+      with_items: "{{ services }}"
+    - name: Show db version before sync on screen
+      shell: "echo"
+      with_together:
+        - "{{ pre_sync.results|map(attribute='item')|list }}"
+        - "{{ pre_sync.results|map(attribute='stdout')|list }}"
+    - name: Mitaka db syncs
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.db_sync_cmd }}"
+      with_items: "{{ services }}"
+    - name: Mitaka Api db online migration
+      shell: "source {{ virtualenv }}/bin/activate; {{ nova_db_online_migrate_cmd }}"
+    - name: Mitaka db version check after sync
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.db_version_cmd }}"
+      with_items: "{{ services }}"
+      register: post_sync
+    - name: Show db version after sync on screen
+      shell: "echo"
+      with_together:
+        - "{{ post_sync.results|map(attribute='item')|list }}"
+        - "{{ post_sync.results|map(attribute='stdout')|list }}"

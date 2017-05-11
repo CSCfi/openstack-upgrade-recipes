@@ -1,0 +1,8 @@
+---
+# This puppetize API 1
+
+- hosts: api_servers[0]
+  remote_user: root
+  roles:
+    - puppetize
+

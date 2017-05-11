@@ -1,0 +1,10 @@
+---
+# yum upgrade on compute nodes
+
+- name: Yum upgrade compute nodes
+  hosts: compute_nodes
+  become: yes
+  tasks:
+    - name: Yum update
+      yum: name="*" state=latest exclude="kernel*"
+      ignore_errors: yes

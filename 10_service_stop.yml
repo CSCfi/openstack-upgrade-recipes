@@ -1,0 +1,68 @@
+---
+# Stop and disable all openstack services
+# Puppet will override this when puppet is ran.
+# Remove old cinder services
+#
+
+- hosts: compute_nodes
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Stop and disable services on compute nodes
+      service: 
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items:
+        - openstack-nova-compute
+        - neutron-linuxbridge-agent
+
+- hosts: net_servers
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Stop and disable services on network nodess
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items:
+        - neutron-metadata-agent
+        - neutron-dhcp-agent
+        - neutron-linuxbridge-agent
+
+- hosts: api_servers
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Stop and disable services on API nodes
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items:
+       - neutron-server
+       - openstack-glance-registry
+       - openstack-glance-api
+       - openstack-heat-engine.service
+       - openstack-heat-api
+       - openstack-cinder-scheduler
+       - openstack-cinder-api
+       - openstack-nova-novncproxy
+       - openstack-nova-consoleauth
+       - openstack-nova-scheduler
+       - openstack-nova-conductor
+       - openstack-nova-api
+       - httpd
+    - name: Stop cinder-volume with CRM.
+      command: crm resource stop pri_cinder_volume
+
+- hosts: api_servers[0]
+  gather_facts: no
+  become: yes
+  tasks:
+      # TODO: make this pretty
+    - name: Remove Liberty cinder services # https://docs.openstack.org/developer/cinder/upgrade.html
+      shell: >
+        cinder-manage service list 2>/dev/null |tail -n +2 | awk '{print $1, $2}'|while read line;
+        do cinder-manage service remove $line ; done;

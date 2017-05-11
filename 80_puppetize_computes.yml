@@ -1,0 +1,8 @@
+# Once we have API and net nodes, we run Puppet on the compute nodes, because
+# those are dependent on the API _and_ the network nodes for correct
+# functionality.
+- hosts: compute_nodes
+#  remote_user: root
+  become: yes
+  roles:
+    - puppetize

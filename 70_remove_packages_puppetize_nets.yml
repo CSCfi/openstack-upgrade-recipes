@@ -1,0 +1,20 @@
+---
+# Upgrade network nodes
+- hosts: net_servers
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Remove liberty packages from the net nodes before puppet run
+      # This task might be possible to remove if you add an yum upgrade instead.
+      yum:
+        name:
+          # Is this enough?
+          - '*neutron*'
+          - python2-keyring
+        state: absent
+
+- hosts: net_servers
+  become: yes
+  roles:
+    - puppetize
+
