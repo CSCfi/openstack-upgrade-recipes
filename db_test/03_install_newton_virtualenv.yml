@@ -48,6 +48,7 @@
       - six
       - packaging
       - setuptools
+    pip_freeze_list: "newton.pip.requirements.20170512.txt"
     openstack_libraries:
       - { name: oslo.cache, version: 1.14.0 }
       - { name: oslo.concurrency, version: 3.14.0 }
@@ -108,18 +109,31 @@
         virtualenv: "{{ virtualenv }}"
         virtualenv_site_packages: no
 
-
-    - name: Template in Newton OpenStack pip newton-requirements.txt
-      template:
-        src: "requirements.txt.j2"
-        dest: "{{ virtualenv }}/newton-requirements.txt"
+## Second method where after the test upgrades ran a pip freeze 
+    - name: copy in pip_freeze_list
+      copy:
+        src: "{{ pip_freeze_list }}"
+        dest: "{{ virtualenv }}/newton-pip-freeze-requirements.txt"
       tags: pip_reqs
 
     - name: Install OpenStack pip requirements
       pip:
-        requirements: "{{ virtualenv }}/newton-requirements.txt"
+        requirements: "{{ virtualenv }}/newton-pip-freeze-requirements.txt"
         virtualenv: "{{ virtualenv }}"
       tags: pip_install
+
+## First method
+#    - name: Template in Newton OpenStack pip newton-requirements.txt
+#      template:
+#        src: "requirements.txt.j2"
+#        dest: "{{ virtualenv }}/newton-requirements.txt"
+#      tags: pip_reqs
+#
+#    - name: Install OpenStack pip requirements
+#      pip:
+#        requirements: "{{ virtualenv }}/newton-requirements.txt"
+#        virtualenv: "{{ virtualenv }}"
+#      tags: pip_install
 
     - name: Create Git Repo Dir
       file:
