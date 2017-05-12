@@ -42,6 +42,8 @@
       - { name: oslo.utils, version: 3.16.0 }
       - { name: oslo.versionedobjects, version: 1.17.0 }
       - { name: kombu, version: 4.0.2 }
+      - { name: vine, version: 1.1.3 }
+
       # These would be installed by the OpenStack modules.
     check_services:
       - name: "nova-manage --config-file {{ virtualenv }}/nova.conf db version"
