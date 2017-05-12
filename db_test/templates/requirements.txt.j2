@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+{% for prg in openstack_libraries %}
+{{ prg.name}}=={{prg.version}} # {{ prg.name }}
+{% endfor %}
