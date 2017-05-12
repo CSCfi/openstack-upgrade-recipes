@@ -5,7 +5,7 @@
 # This play does not execute the upgrade of the DBs.
 
 - name: Setup Env for testing mitaka db upgrades
-  hosts: db_test_server
+  hosts: db_test_servers
   gather_facts: no
   become: yes
   vars:
@@ -301,7 +301,7 @@
 
     - name: copy in almost blank config files
       copy: 
-        src: "openstack_configs/{{ item.config_file }}"
+        src: "{{ item.config_file }}"
         dest: "{{ virtualenv }}/{{ item.config_file }}"
       with_items: "{{ services }}"
       tags: config_files

@@ -1,0 +1,172 @@
+---
+# This playbook will install and setup the Mitaka Virtual Env for the
+# database upgrade procedure. This should be run on a Liberty Api node
+# before shutdown.
+
+- name: Setup Env for Nova Newton database upgrade
+  hosts: db_test_servers
+  gather_facts: no
+  become: yes
+  vars:
+    virtualenv: "/root/newton"
+    repodir: "/root/gitrepo_newton"
+    services:
+      - name: nova
+        git_version: 14.0.5
+        config_file: "nova.conf"
+        test_command: "nova-manage"
+        test_param: "db version"
+    pip_packages:
+      - pip
+      - MySQL-python
+      - Routes
+      - six
+      - packaging
+      - setuptools
+    openstack_libraries:
+      - { name: oslo.cache, version: 1.14.0 }
+      - { name: oslo.concurrency, version: 3.14.0 }
+      - { name: oslo.config, version: 3.17.1 }
+      - { name: oslo.context, version: 2.9.0 }
+      - { name: oslo.db, version:  4.13.5 }
+      - { name: oslo.i18n, version: 3.9.0 }
+      - { name: oslo.log, version: 3.16.0 }
+      - { name: oslo.messaging, version: 5.10.1 }
+      - { name: oslo.middleware, version: 3.19.0 }
+      - { name: oslo.policy, version:  1.14.0 }
+      - { name: oslo.privsep, version: 1.13.2 }
+      - { name: oslo.reports, version: 1.14.0 }
+      - { name: oslo.rootwrap, version: 5.1.1 }
+      - { name: oslo.serialization, version: 2.13.0 }
+      - { name: oslo.service, version: 1.16.0 }
+      - { name: oslo.utils, version: 3.16.0 }
+      - { name: oslo.versionedobjects, version: 1.17.0 }
+      - { name: kombu, version: 4.0.2 }
+      # These would be installed by the OpenStack modules.
+    check_services:
+      - name: "nova-manage --config-file {{ virtualenv }}/nova.conf db version"
+  tasks:
+    - name: Install pre-requisite packages for venv
+      yum: name={{ item }} state=installed
+      with_items:
+        - python2-pip
+        - git
+        - python-devel
+        - libffi-devel
+        - openssl-devel
+        - mariadb-devel
+        - python-virtualenv
+        - mariadb-server
+
+    - name: start and enable mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Upgrade virtualenv
+      pip:
+        name: "virtualenv"
+        state: present
+        version: 15.1.0
+    - name: Update setuptools globally
+      pip:
+        name: "setuptools"
+        state: present
+        version: 34.2.0
+    - name: Create the Virtual Env and install pip pre-reqs
+      pip:
+        name: "{{ pip_packages | join(' ') }}"
+        state: latest
+        virtualenv: "{{ virtualenv }}"
+        virtualenv_site_packages: no
+
+
+    - name: Template in Newton OpenStack pip newton-requirements.txt
+      template:
+        src: "requirements.txt.j2"
+        dest: "{{ virtualenv }}/newton-requirements.txt"
+      tags: pip_reqs
+
+    - name: Install OpenStack pip requirements
+      pip:
+        requirements: "{{ virtualenv }}/newton-requirements.txt"
+        virtualenv: "{{ virtualenv }}"
+      tags: pip_install
+
+    - name: Create Git Repo Dir
+      file:
+        dest: "{{ repodir }}"
+        state: directory
+    - name: Clone OpenStack git repos
+      git:
+        repo: https://github.com/openstack/{{ item.name }}.git
+        dest: "{{ repodir }}/{{ item.name }}"
+        version: "{{ item.git_version }}"
+      with_items: "{{ services }}"
+      register: git_clone
+      tags: clone_repo
+    - name: Activate Virtual Env and Install OpenStack packages
+      shell: "source {{ virtualenv }}/bin/activate; python setup.py install"
+      args:
+        chdir: "{{ repodir }}/{{ item.name }}"
+      with_items: "{{ services }}"
+    - name: Install OpenStack pip requirements
+      tags: ['pip_reqs']
+      pip:
+        requirements: "{{ repodir }}/{{ item.name }}/requirements.txt"
+        virtualenv: "{{ virtualenv }}"
+      with_items: "{{ services }}"
+
+    # Patches to the newton code
+    - name: Patching aggregate.py
+      # /usr/lib/python2.7/site-packages/nova/objects/aggregate.py
+      # Pathced file sha1sum: 7121e3efe03c29e51b5b3324582a983781296ff7
+      # Unpatched sha1sum:    a0646e5bc49e29a2356a35a9fd023c417a953a20
+      copy:
+        src: "../files/aggregate.py"
+        dest: "{{ virtualenv }}/lib/python2.7/site-packages/nova/objects/aggregate.py"
+        owner: root
+        group: root
+        mode: 0644
+      tags: patch
+    - name: Patching flavor.py
+      # /usr/lib/python2.7/site-packages/nova/objects/flavor.py
+      # Pathced file sha1sum: 3d6b4399328e1c54dd43582b45f96a0d2dbcb071
+      # Unpatched sha1sum:    2bf5afe56efd3b250d142a7b39d583823fa68384
+      copy:
+        src: "../files/flavor.py"
+        dest: "{{ virtualenv }}/lib/python2.7/site-packages/nova/objects/flavor.py"
+        owner: root
+        group: root
+        mode: 0644
+      tags: patch
+
+    - name: copy in almost blank config files
+      copy:
+        src: "{{ item.config_file }}"
+        dest: "{{ virtualenv }}/{{ item.config_file }}"
+      with_items: "{{services }}"
+      tags: config_files
+
+    - name: create directories in /var/log for the services
+      file:
+        path: /var/log/{{ item.name }}
+        state: directory
+      with_items: "{{ services }}"
+      tags: logdirs
+
+    - name: This task will fail if there is no folder /var/lib/mysql/service-name. If it does - import all the databases listed in the services ansible variable and then run this playbook again
+      stat:
+        path: "/var/lib/mysql/{{ item.name }}"
+      register: reg_stat_mysql_databases
+      tags: db_check
+      with_items: "{{ services }}"
+      failed_when:
+        - ( reg_stat_mysql_databases.stat.isdir is undefined or reg_stat_mysql_databases.stat.isdir == False)
+
+    - name: Check that all modules can do a version check
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.name }}"
+      changed_when: False
+      with_items: "{{ check_services }}"
+      tags: [check_version]
