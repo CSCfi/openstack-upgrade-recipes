@@ -3,7 +3,7 @@
 # database upgrade procedure. This should be run on a Liberty Api node
 # before shutdown.
 
-- name: Setup Env for Nova Newton database upgrade
+- name: Setup Env for Newton database upgrade
   hosts: db_test_servers
   gather_facts: no
   become: yes
