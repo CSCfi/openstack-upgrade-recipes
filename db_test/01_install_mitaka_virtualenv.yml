@@ -51,7 +51,7 @@
       - setuptools
       # These would be installed by the OpenStack modules.
     openstack_libraries:
-      - { name: aioeventlet, version: 0.5.1 }
+      - { name: aioeventlet, version: 0.5.2 }
       - { name: alembic, version: 0.9.1 }
       - { name: amqp, version: 1.4.9 }
       - { name: anyjson, version: 0.3.3 }
