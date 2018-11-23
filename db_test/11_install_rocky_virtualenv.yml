@@ -1,0 +1,214 @@
+---
+# This playbook will install and setup the env Virtual Env for the
+# database upgrade procedure. This should be run on a Liberty Api node
+# before shutdown.
+
+- name: Setup Env for rocky database upgrade
+  hosts: db_test_servers
+  gather_facts: no
+  become: yes
+  vars:
+    virtualenv: "/root/rocky"
+    repodir: "/root/gitrepo_rocky"
+    services:
+
+      - name: barbican
+        git_version: stable/rocky
+        # because barbican-db-manage in rocky does not have the --config file thingy..
+        config_file: "/etc/barbican/barbican.conf"
+        test_command: "barbican-db-manage"
+        test_param: "current"
+      - name: cinder
+        git_version: stable/rocky
+        config_file: "cinder.conf"
+        test_command: "cinder-manage"
+        test_param: "db version"
+      - name : glance
+        git_version: stable/rocky
+        config_file: "glance-api.conf"
+        test_command: "glance-manage"
+        test_param: "db version"
+      - name: heat
+        git_version: stable/rocky
+        config_file: "heat.conf"
+        test_command: "heat-manage"
+        test_param: "db_version"
+      - name : keystone
+        git_version: stable/rocky
+        config_file: "keystone.conf"
+        test_command: "keystone-manage"
+        test_param: "db_version"
+#      - name : magnum
+#        git_version: stable/rocky
+#        config_file: "/etc/magnum/magnum.conf"
+#        test_command: "magnum-db-manage"
+#        test_param: "version"
+      - name: neutron
+        git_version: stable/rocky
+        config_file: "neutron.conf"
+        test_command: "neutron-db-manage"
+        test_param: "current"
+      - name: nova
+        git_version: stable/rocky
+        config_file: "nova.conf"
+        test_command: "nova-manage"
+        test_param: "db version"
+    pip_packages:
+      - pip
+      - Routes
+      - six
+      - packaging
+      - setuptools
+      - pymysql
+    pip_freeze_list: "rocky.upper-constraints.txt"
+
+  tasks:
+    - name: Install pre-requisite packages for venv
+      yum: name={{ item }} state=installed
+      with_items:
+        - python2-pip
+        - git
+        - python-devel
+        - libffi-devel
+        - openssl-devel
+        - mariadb-devel
+        - python-virtualenv
+        - mariadb-server
+        - MySQL-python
+
+    - name: start and enable mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Upgrade virtualenv
+      pip:
+        name: "virtualenv"
+        state: present
+        version: 15.1.0
+    - name: Update setuptools globally
+      pip:
+        name: "setuptools"
+        state: present
+        version: 34.2.0
+    - name: Create the Virtual Env and install pip pre-reqs
+      pip:
+        name: "{{ pip_packages | join(' ') }}"
+        state: latest
+        virtualenv: "{{ virtualenv }}"
+        virtualenv_site_packages: no
+
+#########
+# https://github.com/openstack/requirements/blob/stable/rocky/upper-constraints.txt#L433
+# TODO: How to run pip with --trusted-host=pypi.org --trusted-host=pythonhosted.org
+# #######
+    # Second method where after the test upgrades ran a pip freeze 
+    - name: copy in upper constraints
+      copy:
+        src: "{{ pip_freeze_list }}"
+        dest: "{{ virtualenv }}/rocky-pip-upper-constraints.txt"
+      tags: pip_reqs
+
+    - name: Install OpenStack pip requirements from upper constraints with a shell command because trusted-hosts ..
+      shell: source {{ virtualenv }}/bin/activate; pip install -r {{ virtualenv }}/rocky-pip-upper-constraints.txt --trusted-host=pypi.org --trusted-host=pythonhosted.org
+#      pip:
+#        requirements: "{{ virtualenv }}/rocky-pip-upper-constraints.txt"
+#        virtualenv: "{{ virtualenv }}"
+      tags: pip_install
+
+    - name: Create Git Repo Dir
+      file:
+        dest: "{{ repodir }}"
+        state: directory
+    - name: Clone OpenStack git repos
+      git:
+        repo: https://github.com/openstack/{{ item.name }}.git
+        dest: "{{ repodir }}/{{ item.name }}"
+        version: "{{ item.git_version }}"
+      with_items: "{{ services }}"
+      register: git_clone
+      tags: clone_repo
+    - name: Activate Virtual Env and Install OpenStack packages with python setup.py install
+      shell: "source {{ virtualenv }}/bin/activate; python setup.py install"
+      args:
+        chdir: "{{ repodir }}/{{ item.name }}"
+      with_items: "{{ services }}"
+    - name: Install OpenStack pip requirements from each repo
+      tags: ['pip_reqs']
+      pip:
+        requirements: "{{ repodir }}/{{ item.name }}/requirements.txt"
+        virtualenv: "{{ virtualenv }}"
+      with_items: "{{ services }}"
+
+#    # Patches to the rocky code
+#    - name: Patching aggregate.py
+#      # /usr/lib/python2.7/site-packages/nova/objects/aggregate.py
+#      # Pathced file sha1sum: 7121e3efe03c29e51b5b3324582a983781296ff7
+#      # Unpatched sha1sum:    a0646e5bc49e29a2356a35a9fd023c417a953a20
+#      copy:
+#        src: "../files/aggregate.py"
+#        dest: "{{ virtualenv }}/lib/python2.7/site-packages/nova/objects/aggregate.py"
+#        owner: root
+#        group: root
+#        mode: 0644
+#      tags: patch
+#    - name: Patching flavor.py
+#      # /usr/lib/python2.7/site-packages/nova/objects/flavor.py
+#      # Pathced file sha1sum: 3d6b4399328e1c54dd43582b45f96a0d2dbcb071
+#      # Unpatched sha1sum:    2bf5afe56efd3b250d142a7b39d583823fa68384
+#      copy:
+#        src: "../files/flavor.py"
+#        dest: "{{ virtualenv }}/lib/python2.7/site-packages/nova/objects/flavor.py"
+#        owner: root
+#        group: root
+#        mode: 0644
+#      tags: patch
+
+    - name: copy in almost blank config files
+      copy:
+        src: "{{ item.config_file }}"
+        dest: "{{ virtualenv }}/{{ item.config_file }}"
+      with_items: "{{services }}"
+      when: item.name != "barbican"
+      tags: config_files
+
+    - name: copy in almost blank config files for barbican
+      copy:
+        src: "barbican.conf"
+        dest: "{{ item.config_file }}"
+      with_items: "{{services }}"
+      when: item.name == "barbican"
+      tags: config_files
+
+    - name: create directories in /var/log for the services
+      file:
+        path: /var/log/{{ item.name }}
+        state: directory
+      with_items: "{{ services }}"
+      tags: logdirs
+
+    - name: This task will fail if there is no folder /var/lib/mysql/service-name. If it does - import all the databases listed in the services ansible variable and then run this playbook again
+      stat:
+        path: "/var/lib/mysql/{{ item.name }}"
+      register: reg_stat_mysql_databases
+      tags: db_check
+      with_items: "{{ services }}"
+      failed_when:
+        - ( reg_stat_mysql_databases.stat.isdir is undefined or reg_stat_mysql_databases.stat.isdir == False)
+
+    - name: Check that all modules except barbican can do a version check
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ services }}"
+      tags: [check_version]
+      when: item.name != "barbican"
+
+    - name: Check that barbican can do a version check
+      shell: "source {{ virtualenv }}/bin/activate;{{ item.test_command }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ services }}"
+      tags: [check_version]
+      when: item.name == "barbican"
+
+...
