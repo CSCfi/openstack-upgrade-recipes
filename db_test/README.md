@@ -9,6 +9,8 @@ Caveats:
 ----
 can't install MySQL-python with mariadb 10.3 installed ??
 
+MySQL-python is not in upper-requirements.txt after Pike - one should use mysql+pymysql ??
+
 
 Usage
 -----
@@ -40,3 +42,8 @@ If you see something like this from the neutron-db-manage command:
 
 This probably means that one of the neutron libraries are too new. Check "pip list|grep neutron" and compare output with the version in the https://raw.githubusercontent.com/openstack/requirements/stable/queens/upper-constraints.txt - maybe something in any of the project's requirements.txt updated it?
 
+
+Branches
+---------
+
+When releases go EOL then branch names change. This means once or twice a year would have to update the playbooks
