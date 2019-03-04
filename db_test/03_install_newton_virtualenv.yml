@@ -60,7 +60,7 @@
       - packaging
       - setuptools
       - pymysql
-    pip_freeze_list: "newton.pip.requirements.20181119.txt"
+    pip_freeze_list: "newton.pip.requirements.201930304txt"
 
   tasks:
     - name: Install pre-requisite packages for venv
@@ -94,7 +94,7 @@
         version: 34.2.0
     - name: Create the Virtual Env and install pip pre-reqs
       pip:
-        name: "{{ pip_packages | join(' ') }}"
+        name: "{{ pip_packages }}"
         state: latest
         virtualenv: "{{ virtualenv }}"
         virtualenv_site_packages: no
@@ -159,6 +159,11 @@
 #        group: root
 #        mode: 0644
 #      tags: patch
+#
+    - name: barbican why you like this
+      file:
+        path: "/etc/barbican" 
+        state: directory
 
     - name: copy in almost blank config files
       copy:
