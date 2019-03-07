@@ -38,11 +38,11 @@
         config_file: "keystone.conf"
         test_command: "keystone-manage"
         test_param: "db_version"
-#      - name : magnum
-#        git_version: stable/ocata
-#        config_file: "/etc/magnum/magnum.conf"
-#        test_command: "magnum-db-manage"
-#        test_param: "version"
+      - name : magnum
+        git_version: stable/ocata
+        config_file: "magnum.conf"
+        test_command: "magnum-db-manage"
+        test_param: "version"
       - name: neutron
         git_version: stable/ocata
         config_file: "neutron.conf"
@@ -71,11 +71,25 @@
         - python-virtualenv
         - mariadb-server
         - MySQL-python
+        - centos-release-openstack-ocata
+    openstack_rpms:
+        - openstack-barbican
+        - openstack-cinder
+        - openstack-glance
+        - openstack-heat-common
+        - openstack-keystone
+        - openstack-magnum-common
+        - openstack-neutron
+        - openstack-nova
+
 
 
   tasks:
     - name: Install pre-requisite packages for venv
       yum: name={{ yum_venv_reqs }} state=installed
+
+    - name: Install openstack RPMs
+      yum: name={{ openstack_rpms }} state=installed
 
     - name: start and enable mariadb
       service:
@@ -104,42 +118,42 @@
 # https://github.com/openstack/requirements/blob/stable/ocata/upper-constraints.txt#L433
 # TODO: How to run pip with --trusted-host=pypi.org --trusted-host=pythonhosted.org
 # #######
-    # Second method where after the test upgrades ran a pip freeze 
-    - name: copy in upper constraints
-      copy:
-        src: "{{ pip_freeze_list }}"
-        dest: "{{ virtualenv }}/ocata-pip-upper-constraints.txt"
-      tags: pip_reqs
-
-    - name: Install OpenStack pip requirements from upper constraints
-      pip:
-        requirements: "{{ virtualenv }}/ocata-pip-upper-constraints.txt"
-        virtualenv: "{{ virtualenv }}"
-      tags: pip_install
-
-    - name: Create Git Repo Dir
-      file:
-        dest: "{{ repodir }}"
-        state: directory
-    - name: Clone OpenStack git repos
-      git:
-        repo: https://github.com/openstack/{{ item.name }}.git
-        dest: "{{ repodir }}/{{ item.name }}"
-        version: "{{ item.git_version }}"
-      with_items: "{{ services }}"
-      register: git_clone
-      tags: clone_repo
-    - name: Activate Virtual Env and Install OpenStack packages with python setup.py install
-      shell: "source {{ virtualenv }}/bin/activate; python setup.py install"
-      args:
-        chdir: "{{ repodir }}/{{ item.name }}"
-      with_items: "{{ services }}"
-    - name: Install OpenStack pip requirements from each repo
-      tags: ['pip_reqs']
-      pip:
-        requirements: "{{ repodir }}/{{ item.name }}/requirements.txt"
-        virtualenv: "{{ virtualenv }}"
-      with_items: "{{ services }}"
+#    # Second method where after the test upgrades ran a pip freeze 
+#    - name: copy in upper constraints
+#      copy:
+#        src: "{{ pip_freeze_list }}"
+#        dest: "{{ virtualenv }}/ocata-pip-upper-constraints.txt"
+#      tags: pip_reqs
+#
+#    - name: Install OpenStack pip requirements from upper constraints
+#      pip:
+#        requirements: "{{ virtualenv }}/ocata-pip-upper-constraints.txt"
+#        virtualenv: "{{ virtualenv }}"
+#      tags: pip_install
+#
+#    - name: Create Git Repo Dir
+#      file:
+#        dest: "{{ repodir }}"
+#        state: directory
+#    - name: Clone OpenStack git repos
+#      git:
+#        repo: https://github.com/openstack/{{ item.name }}.git
+#        dest: "{{ repodir }}/{{ item.name }}"
+#        version: "{{ item.git_version }}"
+#      with_items: "{{ services }}"
+#      register: git_clone
+#      tags: clone_repo
+#    - name: Activate Virtual Env and Install OpenStack packages with python setup.py install
+#      shell: "source {{ virtualenv }}/bin/activate; python setup.py install"
+#      args:
+#        chdir: "{{ repodir }}/{{ item.name }}"
+#      with_items: "{{ services }}"
+#    - name: Install OpenStack pip requirements from each repo
+#      tags: ['pip_reqs']
+#      pip:
+#        requirements: "{{ repodir }}/{{ item.name }}/requirements.txt"
+#        virtualenv: "{{ virtualenv }}"
+#      with_items: "{{ services }}"
 
 #    # Patches to the ocata code
 #    - name: Patching aggregate.py
@@ -197,15 +211,15 @@
       failed_when:
         - ( reg_stat_mysql_databases.stat.isdir is undefined or reg_stat_mysql_databases.stat.isdir == False)
 
-    - name: Check that all modules except barbican can do a version check
-      shell: "source {{ virtualenv }}/bin/activate;{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ services }}"
       tags: [check_version]
       when: item.name != "barbican"
 
-    - name: Check that barbican can do a version check
-      shell: "source {{ virtualenv }}/bin/activate;{{ item.test_command }} {{ item.test_param }}"
+    - name: Use rpm installed version to Check that barbican can do a version check
+      shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ services }}"
       tags: [check_version]

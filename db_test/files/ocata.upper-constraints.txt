@@ -14,7 +14,7 @@ automaton==1.7.1
 Babel==2.3.4
 backports.ssl-match-hostname==3.5.0.1
 bandit==1.4.0
-barbican==4.0.1.dev15
+barbican==6.0.0.0b1
 bashate==0.5.1
 bcrypt==3.1.4
 beautifulsoup4==4.5.3

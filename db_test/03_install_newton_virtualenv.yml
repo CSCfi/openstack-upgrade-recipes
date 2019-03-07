@@ -60,12 +60,8 @@
       - packaging
       - setuptools
       - pymysql
-    pip_freeze_list: "newton.pip.requirements.201930304txt"
-
-  tasks:
-    - name: Install pre-requisite packages for venv
-      yum: name={{ item }} state=installed
-      with_items:
+    pip_freeze_list: "newton.pip.requirements.20190304.txt"
+    yum_venv_reqs:
         - python2-pip
         - git
         - python-devel
@@ -75,6 +71,12 @@
         - python-virtualenv
         - mariadb-server
         - MySQL-python
+
+  tasks:
+    - name: Install pre-requisite packages for venv
+      yum: 
+        name: "{{ yum_venv_reqs }}"
+        state: installed
 
     - name: start and enable mariadb
       service:
