@@ -7,12 +7,13 @@ Tested with ansible 2.3.0.0-3.EL7
 
 Caveats: 
 ----
-can't install MySQL-python with mariadb 10.3 installed ??
+can't install MySQL-python with mariadb 10.3 installed
 
-MySQL-python is not in upper-requirements.txt after Pike - one should use mysql+pymysql ??
+MySQL-python is not in upper-requirements.txt after Pike - one should use mysql+pymysql most likely
 
+Basically don't install mariadb 10 if you still have mysql:// db connections
 
-Usage
+Usage virtualenv
 -----
 
 setup most things:
@@ -22,6 +23,17 @@ import the database
 
 test that most things are working
 <pre> ansibe-playbook 01_install_mitaka_virtualenv.yml --connection=local </pre>
+
+Usage yum
+-----
+
+setup most things:
+<pre> ansibe-playbook 05_install_ocata_yum.yml --connection=local </pre>
+
+import the newton database
+
+upgrade the things
+<pre> ansibe-playbook ../41_upgrade_to_ocata.yml --connection=local </pre>
 
 Creating the small upper-requirements.txt files:
 --------

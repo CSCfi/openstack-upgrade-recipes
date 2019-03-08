@@ -1,88 +1,80 @@
 ---
-# This play updatets the Nova Mitaka DB to Ocata.
+# This play updatets the Nova Mitaka DB to Pike.
 # It requires that the virtualenv is installed
 # See: 03_install_newton_virtualenv.yml 
 
-- name: Setup Env for Ocata db upgrades
+- name: Setup Env for Pike db upgrades
   hosts: api_servers[1]
   gather_facts: no
   become: yes
   vars:
     services:
-      - { name: nova_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf db version" } # Newton: 347, Ocata: 347
-      - { name: api_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf api_db version" } # Newton 29, Ocata: 31
+      - { name: nova_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf db version" } # Ocata: 347, Pike: 362
+      - { name: api_db, command: "nova-manage --config-file={{ virtualenv }}/nova.conf api_db version" } # Ocata: 31, Pike: 42
     other_services:
       - name: barbican
-        # because barbican-db-manage in ocata does not have the --config file thingy..
+        # because barbican-db-manage in pike does not have the --config file thingy..
         config_file: "/etc/barbican/barbican.conf"
         test_command: "barbican-db-manage"
         test_param: "current"
         upgrade_command: "upgrade"
       - name: cinder1
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "cinder.conf"
         test_command: "cinder-manage"
         test_param: "db online_data_migrations"
         upgrade_command: "db sync"
       - name: cinder2
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "cinder.conf"
         test_command: "cinder-manage"
         test_param: "db version"
         upgrade_command: "db sync"
       - name : glance
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "glance-api.conf"
         test_command: "glance-manage"
         test_param: "db version"
         upgrade_command: "db sync"
       - name: heat
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "heat.conf"
         test_command: "heat-manage"
         test_param: "db_version"
         upgrade_command: "db_sync"
       - name : keystone
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "keystone.conf"
         test_command: "keystone-manage"
         test_param: "db_version"
         upgrade_command: "db_sync"
       - name : magnum
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "magnum.conf"
         test_command: "magnum-db-manage"
         test_param: "version"
         upgrade_command: "upgrade"
       - name: neutron
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "neutron.conf"
         test_command: "neutron-db-manage"
         test_param: "current"
         upgrade_command: "upgrade heads"
       - name: nova
-        git_version: stable/ocata
+        git_version: stable/pike
         config_file: "nova.conf"
         test_command: "nova-manage"
         test_param: "db version"
         upgrade_command: "db sync"
-    virtualenv: "/root/ocata"
+    virtualenv: "/root/pike"
   tasks:
 
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 map_cell0 
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/newton/nova.conf cell_v2 create_cell --name cell1 --transport-url rabbit://USER:PASSWORD@10.A.1.1:5672/
-#[root@db-upgrade-test ~]# nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts
-
-# 2019-03-07 14:31:30.375 7433 INFO migrate.versioning.api [-] 14 -> 15... 
-# 2019-03-07 14:31:30.387 7433 CRITICAL keystone [-] DBDataError: (pymysql.err.DataError) (1265, u"Data truncated for column 'domain_id' at row 14") [SQL: u'\nALTER TABLE user CHANGE COLUMN domain_id domain_id VARCHAR(64) NOT NULL']
-#
-## For some reason the cinder user when the domain_id column was created did not get its domain?..
-# mysql > update user set domain_id = "default" where domain_id is NULL;
-# Query OK, 1 row affected (0.00 sec)
+## Notes:
+# have to run cinder online_data_migrations too - already in Ocata
 #
 
 
-    - name: Ocata db version check pre sync
+    - name: Pike db version check pre sync
       shell: "{{ item.command }}"
       register: pre_sync
       with_items: "{{ services }}"
@@ -91,15 +83,15 @@
       with_together:
         - "{{ pre_sync.results|map(attribute='item')|list }}"
         - "{{ pre_sync.results|map(attribute='stdout')|list }}"
-    - name:  Ocata Nova db syncs
+    - name:  Pike Nova db syncs
       shell: "nova-manage --config-file={{ virtualenv }}/nova.conf db sync"
       register: nova_db_version
-    - name: Ocata Nova api_db sync
+    - name: Pike Nova api_db sync
       shell: "nova-manage --config-file={{ virtualenv }}/nova.conf api_db sync"
       register: nova_api_version
-    - name: Ocata Nova online_data_migration
+    - name: Pike Nova online_data_migration (took >2h with 2 cores on cpouta-test)
       shell: "nova-manage --config-file={{ virtualenv }}/nova.conf db online_data_migrations"
-    - name: Ocata db version check after sync
+    - name: Pike db version check after sync
       shell: "{{ item.command }}"
       with_items: "{{ services }}"
       register: post_sync
@@ -157,23 +149,14 @@
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
-      register: reg_post1
-      tags: [check_version]
+      register: reg_post
+      tags: [check_version, check_version_last]
       when: item.name != "barbican"
 
     - name: Use rpm installed version to Check that barbican can do a version check
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
-      register: reg_post2
+      register: reg_post
       with_items: "{{ other_services }}"
-      tags: [check_version]
+      tags: [check_version, check_version_last]
       when: item.name == "barbican"
-
-    - name: print reg_post1
-      debug:
-        var: reg_post1
-        verbosity: 1
-    - name: print reg_post2
-      debug:
-        var: reg_post2
-        verbosity: 1
