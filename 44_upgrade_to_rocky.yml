@@ -1,11 +1,11 @@
 ---
-# This play updatets the Nova DB to pike.
+# This play updatets the Nova DB to rocky.
 
-- name: Upgrade to pike using software in chroot_pike
-  hosts: chroot_pike
+- name: Upgrade to rocky using software in chroot_rocky
+  hosts: chroot_rocky
   gather_facts: no
   connection: chroot
-  vars_files: db_test/pike_vars.yml
+  vars_files: db_test/rocky_vars.yml
   tasks:
 
 ############

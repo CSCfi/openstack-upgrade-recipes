@@ -1,11 +1,11 @@
 ---
-# This play updatets the Nova DB to pike.
+# This play updatets the Nova DB to queens.
 
-- name: Upgrade to pike using software in chroot_pike
-  hosts: chroot_pike
+- name: Upgrade to queens using software in chroot_queens
+  hosts: chroot_queens
   gather_facts: no
   connection: chroot
-  vars_files: db_test/pike_vars.yml
+  vars_files: db_test/queens_vars.yml
   tasks:
 
 ############

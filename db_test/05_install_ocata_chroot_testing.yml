@@ -1,0 +1,40 @@
+---
+- name: setup chroot
+  hosts: db_test_servers
+  gather_facts: no
+  connection: local
+  vars_files: "ocata_vars.yml"
+  tasks:
+
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+
+    - name: unmount any existing /root/rpm_*/dev
+      shell: umount /root/rpm_*/dev
+      when: "'root' in reg_mounts.stdout"
+      ignore_errors: True
+
+    - name: mount --bind /dev /tmp/chroot/dev because things need /dev/random 
+      command: mount --bind /dev /root/rpm_{{ osv }}/dev
+
+- name: chroot check versions
+  hosts: chroot_ocata
+  gather_facts: yes
+  vars_files: "ocata_vars.yml"
+  connection: chroot
+  tasks:
+
+
+    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ services }}"
+      tags: [check_version]
+      when: item.name != "barbican"
+

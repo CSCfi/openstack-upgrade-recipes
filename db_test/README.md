@@ -3,7 +3,7 @@ Testing the db upgrades on a "clean" VM
 
 Requirements: a dump of the database
 
-Tested with ansible 2.3.0.0-3.EL7
+Tested with ansible 2.7 on EL7
 
 Caveats: 
 ----
@@ -24,16 +24,16 @@ import the database
 test that most things are working
 <pre> ansibe-playbook 01_install_mitaka_virtualenv.yml --connection=local </pre>
 
-Usage yum
+Usage yum and chroot - beware, puts ~1.6GB (Ocata) in each version's /root/rpm/ directory
 -----
 
 setup most things:
-<pre> ansibe-playbook 05_install_ocata_yum.yml --connection=local </pre>
+<pre> sudo ansibe-playbook 05_install_ocata_yum.yml </pre>
 
 import the newton database
 
 upgrade the things
-<pre> ansibe-playbook ../41_upgrade_to_ocata.yml --connection=local </pre>
+<pre> sudo ansibe-playbook ../41_upgrade_to_ocata.yml </pre>
 
 Creating the small upper-requirements.txt files:
 --------

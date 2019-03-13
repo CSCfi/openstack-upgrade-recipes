@@ -3,3 +3,11 @@ localhost
 [api_servers]
 localhost
 localhost6
+[chroot_ocata]
+/root/rpm_ocata
+[chroot_pike]
+/root/rpm_pike
+[chroot_queens]
+/root/rpm_queens
+[chroot_rocky]
+/root/rpm_rocky

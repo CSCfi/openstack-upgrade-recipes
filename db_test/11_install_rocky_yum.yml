@@ -1,116 +1,53 @@
 ---
-# This playbook will install and setup the Mitaka Virtual Env for the
-# database upgrade procedure. This should be run on a Liberty Api node
-# before shutdown.
+# Thank You: https://gist.github.com/bhouse/7fb09a6d04e7dc02ee12
 
-- name: Setup Env for rocky database upgrade
+- name: Setup Env for rocky database upgrade and use chroot to have several RPM dbs!
   hosts: db_test_servers
+  connection: local
   gather_facts: no
   become: yes
-  vars:
-    virtualenv: "/root/rocky"
-    repodir: "/root/gitrepo_rocky"
-    services:
-
-      - name: barbican
-        git_version: stable/rocky
-        # because barbican-db-manage in ocata does not have the --config file thingy..
-        config_file: "/etc/barbican/barbican.conf"
-        test_command: "barbican-db-manage"
-        test_param: "current"
-      - name: cinder
-        git_version: stable/rocky
-        config_file: "cinder.conf"
-        test_command: "cinder-manage"
-        test_param: "db version"
-      - name : glance
-        git_version: stable/rocky
-        config_file: "glance-api.conf"
-        test_command: "glance-manage"
-        test_param: "db version"
-      - name: heat
-        git_version: stable/rocky
-        config_file: "heat.conf"
-        test_command: "heat-manage"
-        test_param: "db_version"
-      - name : keystone
-        git_version: stable/rocky
-        config_file: "keystone.conf"
-        test_command: "keystone-manage"
-        test_param: "db_version"
-      - name : magnum
-        git_version: stable/rocky
-        config_file: "magnum.conf"
-        test_command: "magnum-db-manage"
-        test_param: "version"
-      - name: neutron
-        git_version: stable/rocky
-        config_file: "neutron.conf"
-        test_command: "neutron-db-manage"
-        test_param: "current"
-      - name: nova
-        git_version: stable/rocky
-        config_file: "nova.conf"
-        test_command: "nova-manage"
-        test_param: "db version"
-    pip_packages:
-      - pip
-      - Routes
-      - six
-      - packaging
-      - setuptools
-      - pymysql
-    pip_freeze_list: "rocky.upper-constraints.txt"
-    yum_venv_reqs:
-        - python2-pip
-        - git
-        - python-devel
-        - libffi-devel
-        - openssl-devel
-        - mariadb-devel
-        - python-virtualenv
-        - mariadb-server
-        - MySQL-python
-
-    openstack_old_meta_package:
-        - centos-release-ceph-jewel
-        - centos-release-openstack-ocata
-        - centos-release-openstack-pike
-        - centos-release-openstack-queens
-
-    openstack_meta_package:
-        - centos-release-openstack-rocky
-    openstack_rpms:
-        - openstack-barbican
-        - openstack-cinder
-        - openstack-glance
-        - openstack-heat-common
-        - openstack-keystone
-        - openstack-magnum-common
-        - openstack-neutron
-        - openstack-nova
-
-
+  vars_files: "rocky_vars.yml"
 
   tasks:
-    - name: Install pre-requisite packages for venv
-      yum: name={{ yum_venv_reqs }} state=installed
+    - name: create rpm_installroot directory
+      file:
+        path: "/root/rpm_{{ osv }}/var/lib/rpm"
+        state: directory
+        recurse: yes
+      tags: install
+      register: reg_create_installroot
 
-    - name: first uninstall old openstack meta packages
-      yum: name={{ openstack_old_meta_package }} state=absent
-      tags: uninstall
+    - name: rebuild rpmdb in rpm_installroot if we create the directory
+      command: rpm --rebuilddb --root=/root/rpm_{{ osv }}
+      when: reg_create_installroot is changed
+      tags: install
 
-    - name: Install openstack meta package
-      yum: name={{ openstack_meta_package }} state=installed
-      register: reg_openstack_meta
+    - name: install centos-release-7.6 in rpm_installroot
+      command: rpm -i --root=/root/rpm_{{ osv }} --nodeps http://mirror.centos.org/centos-7/7.6.1810/os/x86_64/Packages/centos-release-7-6.1810.2.el7.centos.x86_64.rpm
+      when: reg_create_installroot is changed
 
-    - name: first uninstall old openstack rpms
-      yum: name={{ openstack_rpms }} state=absent
-      when: reg_openstack_meta is changed
-      tags: uninstall
+    - name: Install pre-requisite packages in chroot
+      yum: 
+        name: "{{ yum_venv_reqs }}" 
+        state: installed
+        installroot: /root/rpm_{{osv}}
+      tags: install
 
-    - name: Install openstack RPMs
-      yum: name={{ openstack_rpms }} state=installed
+    - name: point to new location of RPM GPG keys inside chroot
+      shell: "sed -i 's#///etc#///root/rpm_{{ osv }}/etc#' /root/rpm_{{ osv }}/etc/yum.repos.d/CentOS-*.repo"
+      tags: install
+
+    - name: because centos baseurl has $contentdir and changing that to centos makes stuff work
+      shell: "sed -i 's#$contentdir#centos#' /root/rpm_{{ osv }}/etc/yum.repos.d/CentOS-*.repo"
+
+    # also add new GPG keys to rpm db?
+
+    - name: Install openstack RPMs in chroot
+      yum: 
+        name: "{{ openstack_rpms }}" 
+        state: installed
+        installroot: /root/rpm_{{osv}}
+      tags: install
 
     - name: start and enable mariadb
       service:
@@ -118,36 +55,30 @@
         state: started
         enabled: yes
 
-    - name: Upgrade virtualenv
-      pip:
-        name: "virtualenv"
-        state: present
-        version: 15.1.0
-    - name: Update setuptools globally
-      pip:
-        name: "setuptools"
-        state: present
-        version: 34.2.0
-    - name: Create the Virtual Env and install pip pre-reqs
-      pip:
-        name: "{{ pip_packages }}"
-        state: latest
-        virtualenv: "{{ virtualenv }}"
-        virtualenv_site_packages: no
+    - name: create directory where we store configs
+      file:
+        path: "/root/rpm_{{ osv }}{{ virtualenv }}"
+        state: directory
+        recurse: yes
+      tags: config_files
 
     - name: copy in almost blank config files
       copy:
         src: "{{ item.config_file }}"
-        dest: "{{ virtualenv }}/{{ item.config_file }}"
-      with_items: "{{services }}"
+        dest: "/root/rpm_{{ osv }}{{ virtualenv }}/{{ item.config_file }}"
+      loop: "{{services }}"
+      loop_control:
+        label: "{{ item.name }}"
       when: item.name != "barbican"
       tags: config_files
 
     - name: copy in almost blank config files for barbican
       copy:
         src: "barbican.conf"
-        dest: "{{ item.config_file }}"
-      with_items: "{{services }}"
+        dest: "/root/rpm_{{osv }}{{ item.config_file }}"
+      loop: "{{services }}"
+      loop_control:
+        label: "{{ item.name }}"
       when: item.name == "barbican"
       tags: config_files
 
@@ -155,7 +86,9 @@
       file:
         path: /var/log/{{ item.name }}
         state: directory
-      with_items: "{{ services }}"
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
       tags: logdirs
 
     - name: This task will fail if there is no folder /var/lib/mysql/service-name. If it does - import all the databases listed in the services ansible variable and then run this playbook again
@@ -163,22 +96,61 @@
         path: "/var/lib/mysql/{{ item.name }}"
       register: reg_stat_mysql_databases
       tags: db_check
-      with_items: "{{ services }}"
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
       failed_when:
         - ( reg_stat_mysql_databases.stat.isdir is undefined or reg_stat_mysql_databases.stat.isdir == False)
+
+- name: setup chroot
+  hosts: db_test_servers
+  gather_facts: no
+  connection: local
+  vars_files: "rocky_vars.yml"
+  tasks:
+
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+
+    - name: unmount any existing /root/rpm_*/dev
+      shell: umount /root/rpm_*/dev
+      when: "'root' in reg_mounts.stdout"
+      ignore_errors: True
+
+    - name: mount --bind /dev /root/rpm_{{ osv }}/dev because things need /dev/random
+      command: mount --bind /dev /root/rpm_{{ osv }}/dev
+
+- name: chroot check versions
+  hosts: chroot_rocky
+  gather_facts: yes
+  vars_files: "rocky_vars.yml"
+  connection: chroot
+  tasks:
 
     - name: Use rpm installed version to Check that all modules except barbican can do a version check
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
-      with_items: "{{ services }}"
       tags: [check_version]
       when: item.name != "barbican"
+      register: reg_versions
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Use rpm installed version to Check that barbican can do a version check
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
-      with_items: "{{ services }}"
       tags: [check_version]
       when: item.name == "barbican"
+      register: reg_versions
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
 
 ...
