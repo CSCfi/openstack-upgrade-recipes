@@ -130,7 +130,7 @@
   connection: chroot
   tasks:
 
-    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+    - name: db version check for all except barbican
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       tags: [check_version]
@@ -140,7 +140,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Check that barbican can do a version check
+    - name: db version check for barbican
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       tags: [check_version]

@@ -70,7 +70,7 @@ other_services:
     config_file: "glance-api.conf"
     test_command: "glance-manage"
     test_param: "db version"
-    upgrade_command: "db sync"
+    upgrade_command: "db_sync"
   - name: heat
     git_version: stable/ocata
     config_file: "heat.conf"
@@ -95,24 +95,24 @@ other_services:
     test_command: "neutron-db-manage"
     test_param: "current"
     upgrade_command: "upgrade heads"
-  - name: nova1
+  - name: nova_1
     git_version: stable/ocata
     config_file: "nova.conf"
     test_command: "nova-manage"
     test_param: "db version"
     upgrade_command: "db sync"
-  - name: nova2
-    git_version: stable/ocata
-    config_file: "nova.conf"
-    test_command: "nova-manage"
-    test_param: "db version"
-    upgrade_command: "db online_data_migrations"
   - name: nova_api1
     git_version: stable/ocata
     config_file: "nova.conf"
     test_command: "nova-manage"
     test_param: "api_db version"
     upgrade_command: "api_db sync"
+  - name: nova_online_migrations
+    git_version: stable/ocata
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "db version"
+    upgrade_command: "db online_data_migrations"
 
 
 yum_venv_reqs:

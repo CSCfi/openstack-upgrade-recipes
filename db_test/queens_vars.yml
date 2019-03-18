@@ -53,12 +53,14 @@ other_services:
     test_command: "barbican-db-manage"
     test_param: "current"
     upgrade_command: "upgrade"
-  - name: cinder1
-    git_version: stable/queens
-    config_file: "cinder.conf"
-    test_command: "cinder-manage"
-    test_param: "db online_data_migrations"
-    upgrade_command: "db sync"
+# Disable cinder online_data_migrations in Queens because
+# [7040acb0-10c2-4481-b401-f3cbd7107165] AMQP server on 127.0.0.1:5672 is unreachable: [Errno 111] Connection refused. Trying again in 32 seconds.: error: [Errno 111] Connection refused"]}
+#  - name: cinder1
+#    git_version: stable/queens
+#    config_file: "cinder.conf"
+#    test_command: "cinder-manage"
+#    test_param: "db online_data_migrations"
+#    upgrade_command: "db sync"
   - name: cinder2
     git_version: stable/queens
     config_file: "cinder.conf"
@@ -70,7 +72,7 @@ other_services:
     config_file: "glance-api.conf"
     test_command: "glance-manage"
     test_param: "db version"
-    upgrade_command: "db sync"
+    upgrade_command: "db_sync"
   - name: heat
     git_version: stable/queens
     config_file: "heat.conf"
@@ -95,24 +97,24 @@ other_services:
     test_command: "neutron-db-manage"
     test_param: "current"
     upgrade_command: "upgrade heads"
-  - name: nova1
+  - name: nova_1
     git_version: stable/queens
     config_file: "nova.conf"
     test_command: "nova-manage"
     test_param: "db version"
     upgrade_command: "db sync"
-  - name: nova2
-    git_version: stable/queens
-    config_file: "nova.conf"
-    test_command: "nova-manage"
-    test_param: "db version"
-    upgrade_command: "db online_data_migrations"
   - name: nova_api1
     git_version: stable/queens
     config_file: "nova.conf"
     test_command: "nova-manage"
     test_param: "api_db version"
     upgrade_command: "api_db sync"
+  - name: nova_online_migrations
+    git_version: stable/pike
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "db version"
+    upgrade_command: "db online_data_migrations"
 
 
 yum_venv_reqs:

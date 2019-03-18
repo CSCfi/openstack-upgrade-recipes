@@ -1,11 +1,12 @@
 ---
 # This play updatets the Nova DB to ocata.
 
-- name: Upgrade to ocata using software in chroot_ocata
-  hosts: chroot_ocata
+- name: DB preparation before ocata
+  hosts: api_servers[1]
+  connection: local
   gather_facts: no
-  connection: chroot
   vars_files: 
+    - db_test/purges.yml
     - db_test/ocata_vars.yml
   tasks:
 
@@ -43,21 +44,20 @@
 # Query OK, 1 row affected (0.00 sec)
 #
 
-############
+###########
 #
-    - name: fail if there's no nova_cell0 database see comments in this playbook for minimal steps to setup cells
+    - name: fail if there's a nova_cell0 database - maybe this script has been run already?
       stat:
         path: "/var/lib/mysql/nova_cell0"
       register: reg_cell0
       delegate_to: localhost
-      failed_when: reg_cell0.stat.exists != True
+      failed_when: reg_cell0.stat.exists == True
 
-    - name: fail if there's no cell_mappings.frm file for nova_api database
+    - name: fail if there's a cell_mappings.frm file for nova_api database - maybe this script has been run already?
       stat:
         path: "/var/lib/mysql/nova_api/cell_mappings.frm"
       register: reg_cell_mappings
-      delegate_to: localhost
-      failed_when: reg_cell_mappings.stat.exists != True
+      failed_when: reg_cell_mappings.stat.exists == True
 
     - name: list mounts
       command: mount
@@ -76,83 +76,42 @@
         that: "'rpm_{{ osv }}' in reg_mounts.stdout"
       delegate_to: localhost
 
-    - name: db version check for all except barbican
-      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
-      changed_when: False
-      with_items: "{{ other_services }}"
-      register: reg_post3
-      tags: [check_version]
-      when: item.name != "barbican"
-      loop_control:
-        label: "{{ item.name }}"
+# prep database
+#
 
-    - name: db version check for barbican
-      shell: "{{ item.test_command }} {{ item.test_param }}"
-      changed_when: False
-      with_items: "{{ other_services }}"
-      register: reg_post4
-      tags: [check_version]
-      when: item.name == "barbican"
-      loop_control:
-        label: "{{ item.name }}"
+    - name: create nova_cell0 mysql database
+      tags: ['db_cell0']
+      shell: "echo 'create database nova_cell0;' | mysql"
+      register: reg_cell0_create
+      #rc 1 for "db already exists"
+      failed_when: reg_cell0_create.rc != 1
 
-    - name: print reg_post3
+    - name: keystone set user domain to default if it is NULL
+      tags: ['db_null']
+      shell: "echo 'update user set domain_id = 'default' where domain_id is NULL;'|mysql keystone"
+
+- name: DB cell creation and db purging with openstack commands
+  hosts: chroot_ocata
+  connection: chroot
+  gather_facts: no
+  vars_files: 
+    - db_test/purges.yml
+
+  tasks:
+    - name: print
       debug:
-        var: reg_post3
-        verbosity: 2
-    - name: print reg_post4
-      debug:
-        var: reg_post4
-        verbosity: 2
+        var: nova_cells
+    - name: setup for _testing_ only nova cells
+      tags: ['db_cells']
+      command: "{{ item }}"
+      loop: "{{ nova_cells }}"
+      register: reg_nova_cells
+      failed_when: (reg_nova_cells.rc != 0) and (reg_nova_cells.rc != 1) and (reg_nova_cells.rc != 2)
 
-# upgrade
-    - name: Upgrade all modules except barbican
-      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.upgrade_command }}"
-      changed_when: False
-      with_items: "{{ other_services }}"
-      tags: [check_version]
-      when: item.name != "barbican"
-      loop_control:
-        label: "{{ item.name }}"
+    - name: purge deleted data from dbs
+      tags: ['db_purge']
+      command: "{{ item }}"
+      with_items: "{{ db_purges }}"
+      register: reg_db_purges
+      failed_when: (reg_db_purges.rc != 0) and (reg_db_purges.rc != 1)
 
-    - name: Upgrade barbican
-      shell: "{{ item.test_command }} {{ item.upgrade_command }}"
-      changed_when: False
-      with_items: "{{ other_services }}"
-      tags: [check_version]
-      when: item.name == "barbican"
-      loop_control:
-        label: "{{ item.name }}"
-
-# check version after
-
-    - name: db version check for all except barbican
-      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
-      changed_when: False
-      with_items: "{{ other_services }}"
-      register: reg_post1
-      tags: [check_version]
-      when: item.name != "barbican"
-      loop_control:
-        label: "{{ item.name }}"
-
-    - name: db version check for barbican
-      shell: "{{ item.test_command }} {{ item.test_param }}"
-      changed_when: False
-      register: reg_post2
-      with_items: "{{ other_services }}"
-      tags: [check_version]
-      when: item.name == "barbican"
-      loop_control:
-        label: "{{ item.name }}"
-
-    - name: print reg_post1
-      debug:
-        var: reg_post1
-        verbosity: 2
-    - name: print reg_post2
-      debug:
-        var: reg_post2
-        verbosity: 2
-
-...

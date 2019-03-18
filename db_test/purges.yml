@@ -1,0 +1,22 @@
+---
+# This play updatets the Nova DB to ocata.
+
+## Minimal steps to setup cells after nova_cell0 has been created
+nova_cells:
+ - "nova-manage --config-file /root/ocata/nova.conf cell_v2 map_cell0"
+ - "nova-manage --config-file /root/ocata/nova.conf cell_v2 create_cell --name cell1 --transport-url rabbit://USER:PASSWORD@10.A.1.1:5672/"
+ - "nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts"
+ - "nova-manage --config-file /root/ocata/nova.conf db sync"
+ - "nova-manage --config-file /root/ocata/nova.conf api_db sync"
+db_purges:
+ - keystone-manage --config-file /root/ocata/keystone.conf  token_flush
+ - barbican-manage --debug db clean -V --min-days 50
+ - nova-manage --debug --config-file /root/ocata/nova.conf db archive_deleted_rows
+ - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
+ # because on first run saw error about foreign key constraint
+ - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
+ - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
+ - cinder-manage --config-file /root/ocata/cinder.conf db purge 50
+ - heat-manage --config-file /root/ocata/heat.conf purge_deleted
+
+...
