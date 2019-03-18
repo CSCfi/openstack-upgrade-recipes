@@ -13,6 +13,8 @@ MySQL-python is not in upper-requirements.txt after Pike - one should use mysql+
 
 Basically don't install mariadb 10 if you still have mysql:// db connections
 
+Maybe also want to tune my.cnf to improve performance somehow?
+
 Usage virtualenv
 -----
 

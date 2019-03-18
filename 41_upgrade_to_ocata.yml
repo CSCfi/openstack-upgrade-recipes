@@ -10,35 +10,21 @@
   tasks:
 
 ## Minimal steps to setup cells
-#mysql > create database nova_cell0;
-#grants not needed in test.
-#then where you have ocata run:
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 map_cell0 
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 create_cell --name cell1 --transport-url rabbit://USER:PASSWORD@10.A.1.1:5672/
-#[root@db-upgrade-test ~]# nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf db sync
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf api_db sync
+## See 29_*.yml for how one can set that up manually and also purge some old data from the dbs
 #
-### While you're at it also consider archiving deleted resources
+## One manual thing remain.. 
+# For some reason the cinder user when the domain_id column was created did not get its domain?..
+#  and this problem only shows up for user cinder in cpouta-test
 #
-# keystone-manage --config-file /root/queens/keystone.conf  token_flush
-# barbican-manage --debug db clean -V --min-days 50
-# nova-manage --debug --config-file /root/queens/nova.conf db archive_deleted_rows
-# glance-manage --config-file /root/queens/glance-api.conf db purge --age_in_days 50
-#   2019-03-18 08:41:32.014 5153 ERROR glance.db.sqlalchemy.api [req-9ad4a1ee-bc37-4c30-9517-d8bf456f4fe5 - - - - -] DBError detected when purging from images: (pymysql.err.IntegrityError) (1451, u'Cannot delete or update a parent row: a foreign key constraint fails (`glance`.`image_locations`, CONSTRAINT `image_locations_ibfk_1` FOREIGN KEY (`image_id`) REFERENCES `images` (`id`))') [SQL: u'DELETE FROM images WHERE images.id in (SELECT T1.id FROM (SELECT images.id \nFROM images \nWHERE images.deleted_at < %(deleted_at_1)s ORDER BY images.deleted_at \n LIMIT %(param_1)s) as T1)'] [parameters: {u'deleted_at_1': datetime.datetime(2019, 1, 27, 8, 41, 31, 698376), u'param_1': 100}] (Background on this error at: http://sqlalche.me/e/gkpj): DBReferenceError: (pymysql.err.IntegrityError) (1451, u'Cannot delete or update a parent row: a foreign key constraint fails (`glance`.`image_locations`, CONSTRAINT `image_locations_ibfk_1` FOREIGN KEY (`image_id`) REFERENCES `images` (`id`))') [SQL: u'DELETE FROM images WHERE images.id in (SELECT T1.id FROM (SELECT images.id \nFROM images \nWHERE images.deleted_at < %(deleted_at_1)s ORDER BY images.deleted_at \n LIMIT %(param_1)s) as T1)'] [parameters: {u'deleted_at_1': datetime.datetime(2019, 1, 27, 8, 41, 31, 698376), u'param_1': 100}] (Background on this error at: http://sqlalche.me/e/gkpj)
-# second time it worked out??
-# glance-manage --config-file /root/queens/glance-api.conf db purge --age_in_days 50
-# cinder-manage --config-file /root/queens/cinder.conf db purge 50
-# heat-manage --config-file /root/queens/heat.conf  purge_deleted
+## before:
+# | cinder | {"email": "anemail@cloud.example.org"} |       1 | NULL               | 2017-06-16 05:39:07 | NULL           | NULL                             |
+## after failed keystone db sync
+# | cinder | {"email": "anemail@cloud.example.org"} |       1 | NULL               | 2017-06-16 05:39:07 | NULL           |
+## after modified and successful keystone db sync
+# | cinder | {"email": "anemail@cloud.example.org"} |       1 | NULL               | 2017-06-16 05:39:07 | NULL           | default   |
 #
-
-## Fix needed to one environment's keystone database:
-# 2019-03-07 14:31:30.375 7433 INFO migrate.versioning.api [-] 14 -> 15... 
-# 2019-03-07 14:31:30.387 7433 CRITICAL keystone [-] DBDataError: (pymysql.err.DataError) (1265, u"Data truncated for column 'domain_id' at row 14") [SQL: u'\nALTER TABLE user CHANGE COLUMN domain_id domain_id VARCHAR(64) NOT NULL']
-#
-## For some reason the cinder user when the domain_id column was created did not get its domain?..
 # mysql > use transactions plz; 
-# mysql > update user set domain_id = "default" where domain_id is NULL;
+# mysql > update user set domain_id = "default" where domain_id is NULL and id = "cinder";
 # mysql > commit plz;
 # Query OK, 1 row affected (0.00 sec)
 #

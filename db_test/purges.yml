@@ -18,5 +18,6 @@ db_purges:
  - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
  - cinder-manage --config-file /root/ocata/cinder.conf db purge 50
  - heat-manage --config-file /root/ocata/heat.conf purge_deleted
+ # where you at neutron?
 
 ...

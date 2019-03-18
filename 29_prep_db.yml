@@ -53,12 +53,6 @@
       delegate_to: localhost
       failed_when: reg_cell0.stat.exists == True
 
-    - name: fail if there's a cell_mappings.frm file for nova_api database - maybe this script has been run already?
-      stat:
-        path: "/var/lib/mysql/nova_api/cell_mappings.frm"
-      register: reg_cell_mappings
-      failed_when: reg_cell_mappings.stat.exists == True
-
     - name: list mounts
       command: mount
       no_log: True
@@ -84,11 +78,7 @@
       shell: "echo 'create database nova_cell0;' | mysql"
       register: reg_cell0_create
       #rc 1 for "db already exists"
-      failed_when: reg_cell0_create.rc != 1
-
-    - name: keystone set user domain to default if it is NULL
-      tags: ['db_null']
-      shell: "echo 'update user set domain_id = 'default' where domain_id is NULL;'|mysql keystone"
+      failed_when: ( reg_cell0_create.rc != 1) and (reg_cell0_create.rc != 0)
 
 - name: DB cell creation and db purging with openstack commands
   hosts: chroot_ocata
