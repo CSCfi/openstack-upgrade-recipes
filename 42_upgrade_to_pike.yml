@@ -10,21 +10,24 @@
 
 ############
 #
-    - name: fail if there's no cell0 database see comments in this playbook for minimal steps to setup cells
-      stat:
-        path: "/var/lib/mysql/cell0"
-      register: reg_cell0
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
       delegate_to: localhost
-      failed_when: reg_cell0.stat.exists != True
+      changed_when: False
 
-    - name: fail if there's no cell_mappings.frm file for nova_api database
-      stat:
-        path: "/var/lib/mysql/nova_api/cell_mappings.frm"
-      register: reg_cell_mappings
+    - debug:
+        var: reg_mounts
+        verbosity: 1
       delegate_to: localhost
-      failed_when: reg_cell_mappings.stat.exists != True
 
-    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+    - name: fail if rpm_{{ osv }} is not in mounts - run the num_{{osv}}_yum.yml from db_test/ directory
+      assert:
+        that: "'rpm_{{ osv }}' in reg_mounts.stdout"
+      delegate_to: localhost
+
+    - name: Check all modules except barbican can do a version check
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -34,7 +37,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Check that barbican can do a version check
+    - name: Check that barbican can do a version check
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -54,7 +57,7 @@
         verbosity: 2
 
 # upgrade
-    - name: Use rpm installed version to Upgrade that all modules except barbican
+    - name: Upgrade all modules except barbican
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.upgrade_command }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -63,7 +66,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Upgrade barbican
+    - name: Upgrade barbican
       shell: "{{ item.test_command }} {{ item.upgrade_command }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -74,7 +77,7 @@
 
 # check version after
 
-    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+    - name: Check that all modules except barbican can do a version check
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -84,7 +87,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Check that barbican can do a version check
+    - name: Check that barbican can do a version check
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       register: reg_post2

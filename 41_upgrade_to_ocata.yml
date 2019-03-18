@@ -9,26 +9,33 @@
   tasks:
 
 ## Minimal steps to setup cells
-#mysql > database create cell0;
+#mysql > create database nova_cell0;
 #grants not needed in test.
+#then where you have ocata run:
 #[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 map_cell0 
 #[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 create_cell --name cell1 --transport-url rabbit://USER:PASSWORD@10.A.1.1:5672/
 #[root@db-upgrade-test ~]# nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts
+#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf db sync
+#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf api_db sync
+#
+### While you're at it also consider archiving deleted resources
 
 ## Fix needed to one environment's keystone database:
 # 2019-03-07 14:31:30.375 7433 INFO migrate.versioning.api [-] 14 -> 15... 
 # 2019-03-07 14:31:30.387 7433 CRITICAL keystone [-] DBDataError: (pymysql.err.DataError) (1265, u"Data truncated for column 'domain_id' at row 14") [SQL: u'\nALTER TABLE user CHANGE COLUMN domain_id domain_id VARCHAR(64) NOT NULL']
 #
 ## For some reason the cinder user when the domain_id column was created did not get its domain?..
+# mysql > use transactions plz; 
 # mysql > update user set domain_id = "default" where domain_id is NULL;
+# mysql > commit plz;
 # Query OK, 1 row affected (0.00 sec)
 #
 
 ############
 #
-    - name: fail if there's no cell0 database see comments in this playbook for minimal steps to setup cells
+    - name: fail if there's no nova_cell0 database see comments in this playbook for minimal steps to setup cells
       stat:
-        path: "/var/lib/mysql/cell0"
+        path: "/var/lib/mysql/nova_cell0"
       register: reg_cell0
       delegate_to: localhost
       failed_when: reg_cell0.stat.exists != True
@@ -40,7 +47,24 @@
       delegate_to: localhost
       failed_when: reg_cell_mappings.stat.exists != True
 
-    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+      delegate_to: localhost
+      changed_when: False
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+      delegate_to: localhost
+
+    - name: fail if rpm_{{ osv }} is not in mounts - run the num_{{osv}}_yum.yml from db_test/ directory
+      assert: 
+        that: "'rpm_{{ osv }}' in reg_mounts.stdout"
+      delegate_to: localhost
+
+    - name: db version check for all except barbican
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -50,7 +74,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Check that barbican can do a version check
+    - name: db version check for barbican
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -70,7 +94,7 @@
         verbosity: 2
 
 # upgrade
-    - name: Use rpm installed version to Upgrade that all modules except barbican
+    - name: Upgrade all modules except barbican
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.upgrade_command }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -79,7 +103,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Upgrade barbican
+    - name: Upgrade barbican
       shell: "{{ item.test_command }} {{ item.upgrade_command }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -90,7 +114,7 @@
 
 # check version after
 
-    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+    - name: db version check for all except barbican
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
       changed_when: False
       with_items: "{{ other_services }}"
@@ -100,7 +124,7 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Use rpm installed version to Check that barbican can do a version check
+    - name: db version check for barbican
       shell: "{{ item.test_command }} {{ item.test_param }}"
       changed_when: False
       register: reg_post2

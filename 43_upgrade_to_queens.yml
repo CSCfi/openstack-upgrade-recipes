@@ -10,19 +10,22 @@
 
 ############
 #
-    - name: fail if there's no cell0 database see comments in this playbook for minimal steps to setup cells
-      stat:
-        path: "/var/lib/mysql/cell0"
-      register: reg_cell0
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
       delegate_to: localhost
-      failed_when: reg_cell0.stat.exists != True
+      changed_when: False
 
-    - name: fail if there's no cell_mappings.frm file for nova_api database
-      stat:
-        path: "/var/lib/mysql/nova_api/cell_mappings.frm"
-      register: reg_cell_mappings
+    - debug:
+        var: reg_mounts
+        verbosity: 1
       delegate_to: localhost
-      failed_when: reg_cell_mappings.stat.exists != True
+
+    - name: fail if rpm_{{ osv }} is not in mounts - run the num_{{osv}}_yum.yml from db_test/ directory
+      assert:
+        that: "'rpm_{{ osv }}' in reg_mounts.stdout"
+      delegate_to: localhost
 
     - name: Use rpm installed version to Check that all modules except barbican can do a version check
       shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
