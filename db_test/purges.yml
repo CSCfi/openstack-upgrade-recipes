@@ -1,6 +1,4 @@
 ---
-# This play updatets the Nova DB to ocata.
-
 ## Minimal steps to setup cells after nova_cell0 has been created
 nova_cells:
  - "nova-manage --config-file /root/ocata/nova.conf cell_v2 map_cell0"
@@ -8,10 +6,20 @@ nova_cells:
  - "nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts"
  - "nova-manage --config-file /root/ocata/nova.conf db sync"
  - "nova-manage --config-file /root/ocata/nova.conf api_db sync"
+# Clean out some old crud from the databases
 db_purges:
  - keystone-manage --config-file /root/ocata/keystone.conf  token_flush
  - barbican-manage --debug db clean -V --min-days 50
  - nova-manage --debug --config-file /root/ocata/nova.conf db archive_deleted_rows
+# but nova still has all the deleted instances - maybe the rest do too?
+# http://openstack-in-production.blogspot.com/2015/05/purging-nova-databases-in-cell.html has a nova-purge-db tool which is not updated for 4 years
+# https://github.com/cernops/nova-db-purge/tree/cc0c927e9768873207a487c69e1e7512a5572f11 has one which is for "Mitaka" - any change needed for newton?
+# nova-db-purge
+#  - takes hours
+#  - before: 107080 instances
+# python nova-db-purge.py --date "2018-09-01 00:00:00" --config /root/ocata/nova.conf
+#  - after: instances
+# https://ask.openstack.org/en/question/120217/mariadb-mysql-cleanup-of-nova-database/ ?
  - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
  # because on first run saw error about foreign key constraint
  - glance-manage --config-file /root/ocata/glance-api.conf db purge --age_in_days 50
