@@ -1,7 +1,6 @@
 ---
-# This play updatets the Nova DB to ocata.
 
-- name: DB preparation before ocata
+- name: DB preparation before ocata - also purge! test DB went from 1.8GB to 680MB
   hosts: api_servers[1]
   connection: local
   gather_facts: no
@@ -11,35 +10,15 @@
   tasks:
 
 ## Minimal steps to setup cells
-#mysql > create database nova_cell0;
-#grants not needed in test.
-#then where you have ocata run:
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 map_cell0 
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf cell_v2 create_cell --name cell1 --transport-url rabbit://USER:PASSWORD@10.A.1.1:5672/
-#[root@db-upgrade-test ~]# nova-manage --debug --config-file /root/ocata/nova.conf cell_v2 discover_hosts
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf db sync
-#[root@db-upgrade-test ~]# nova-manage  --config-file /root/ocata/nova.conf api_db sync
-#
-### While you're at it also consider archiving deleted resources
-#
-# keystone-manage --config-file /root/queens/keystone.conf  token_flush
-# barbican-manage --debug db clean -V --min-days 50
-# nova-manage --debug --config-file /root/queens/nova.conf db archive_deleted_rows
-# glance-manage --config-file /root/queens/glance-api.conf db purge --age_in_days 50
-#   2019-03-18 08:41:32.014 5153 ERROR glance.db.sqlalchemy.api [req-9ad4a1ee-bc37-4c30-9517-d8bf456f4fe5 - - - - -] DBError detected when purging from images: (pymysql.err.IntegrityError) (1451, u'Cannot delete or update a parent row: a foreign key constraint fails (`glance`.`image_locations`, CONSTRAINT `image_locations_ibfk_1` FOREIGN KEY (`image_id`) REFERENCES `images` (`id`))') [SQL: u'DELETE FROM images WHERE images.id in (SELECT T1.id FROM (SELECT images.id \nFROM images \nWHERE images.deleted_at < %(deleted_at_1)s ORDER BY images.deleted_at \n LIMIT %(param_1)s) as T1)'] [parameters: {u'deleted_at_1': datetime.datetime(2019, 1, 27, 8, 41, 31, 698376), u'param_1': 100}] (Background on this error at: http://sqlalche.me/e/gkpj): DBReferenceError: (pymysql.err.IntegrityError) (1451, u'Cannot delete or update a parent row: a foreign key constraint fails (`glance`.`image_locations`, CONSTRAINT `image_locations_ibfk_1` FOREIGN KEY (`image_id`) REFERENCES `images` (`id`))') [SQL: u'DELETE FROM images WHERE images.id in (SELECT T1.id FROM (SELECT images.id \nFROM images \nWHERE images.deleted_at < %(deleted_at_1)s ORDER BY images.deleted_at \n LIMIT %(param_1)s) as T1)'] [parameters: {u'deleted_at_1': datetime.datetime(2019, 1, 27, 8, 41, 31, 698376), u'param_1': 100}] (Background on this error at: http://sqlalche.me/e/gkpj)
-# second time it worked out??
-# glance-manage --config-file /root/queens/glance-api.conf db purge --age_in_days 50
-# cinder-manage --config-file /root/queens/cinder.conf db purge 50
-# heat-manage --config-file /root/queens/heat.conf  purge_deleted
-#
 
+## TODO: fix this in advance rather than syncing keystone, fixing it and syncing it again
 ## Fix needed to one environment's keystone database:
 # 2019-03-07 14:31:30.375 7433 INFO migrate.versioning.api [-] 14 -> 15... 
 # 2019-03-07 14:31:30.387 7433 CRITICAL keystone [-] DBDataError: (pymysql.err.DataError) (1265, u"Data truncated for column 'domain_id' at row 14") [SQL: u'\nALTER TABLE user CHANGE COLUMN domain_id domain_id VARCHAR(64) NOT NULL']
 #
 ## For some reason the cinder user when the domain_id column was created did not get its domain?..
 # mysql > use transactions plz; 
-# mysql > update user set domain_id = "default" where domain_id is NULL;
+# mysql > update user set domain_id = "default" where domain_id is NULL and id = "cinder";
 # mysql > commit plz;
 # Query OK, 1 row affected (0.00 sec)
 #
@@ -72,7 +51,6 @@
 
 # prep database
 #
-
     - name: create nova_cell0 mysql database
       tags: ['db_cell0']
       shell: "echo 'create database nova_cell0;' | mysql"
@@ -80,7 +58,7 @@
       #rc 1 for "db already exists"
       failed_when: ( reg_cell0_create.rc != 1) and (reg_cell0_create.rc != 0)
 
-- name: DB cell creation and db purging with openstack commands
+- name: DB nova_cell mapping and db purging with standard openstack commands
   hosts: chroot_ocata
   connection: chroot
   gather_facts: no
@@ -98,7 +76,7 @@
       register: reg_nova_cells
       failed_when: (reg_nova_cells.rc != 0) and (reg_nova_cells.rc != 1) and (reg_nova_cells.rc != 2)
 
-    - name: purge deleted data from dbs
+    - name: purge deleted data from dbs - see db_test/purges.yml - purging nova is not included
       tags: ['db_purge']
       command: "{{ item }}"
       with_items: "{{ db_purges }}"
