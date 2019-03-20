@@ -3,7 +3,10 @@ Testing the db upgrades on a "clean" VM
 
 Requirements: a dump of the database
 
-Tested with ansible 2.7 on EL7
+Tested with:
+ - ansible 2.7 on EL7
+ - a db with instances from 2015, running Newton (upgraded from Liberty at least, maybe further back)
+   - upgraded to Rocky
 
 Caveats: 
 ----
