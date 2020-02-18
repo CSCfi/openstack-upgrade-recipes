@@ -57,6 +57,51 @@ setup most things:
 upgrade to next version:
 <pre> sudo ansibe-playbook ../42_upgrade_to_ocata.yml </pre>
 
+Manual yum and chroot example demo from newton to ocata on an monolith API node
+--------
+
+Using a 
+
+```
+$ virtualenv venv_ansible
+$ source venv_ansible/bin/active
+$ #export proxy
+$ pip install -U ansible pip setuptools
+$ git clone https://github.com/CSCfi/openstack-liberty-newton-upgrade
+$ cd openstack-liberty-newton-upgrade
+$ #git checkout branch
+$ cd db_test
+$ # read the 05_install_ocata_yum.yml
+$ # modify it as appropriate, for a demo one can remove most things or just run the commands manually that are needed
+$ # modify rpm_installroot to where you have more space?
+$ # modify to not start database?
+```
+
+manual commands:
+```
+$ sudo -i
+# mkdir -p rpm_ocata/var/lib/rpm    
+# rpm --rebuilddb --root=/root/rpm_ocata/
+# rpm -i --root=/root/rpm_ocata --nodeps http://www.nic.funet.fi/pub/Linux/INSTALL/Centos/7/os/x86_64/Packages/centos-release-7-7.1908.0.el7.centos.x86_64.rpm
+# yum --installroot=/root/rpm_ocata/ install git python-devel libffi-devel openssl-devel mariadb-devel python-virtualenv MySQL-python centos-release-openstack-ocata    
+# curl http://vault.centos.org/centos/7.5.1804/extras/x86_64/Packages/centos-release-openstack-ocata-1-2.el7.noarch.rpm -O
+# curl http://vault.centos.org/centos/7.5.1804/extras/x86_64/Packages/centos-release-qemu-ev-1.0-3.el7.centos.noarch.rpm -O
+# curl http://vault.centos.org/centos/7.5.1804/extras/x86_64/Packages/centos-release-storage-common-2-2.el7.centos.noarch.rpm -O
+# curl http://vault.centos.org/centos/7.5.1804/extras/x86_64/Packages/centos-release-virt-common-1-1.el7.centos.noarch.rpm -O
+# curl http://vault.centos.org/centos/7.5.1804/extras/x86_64/Packages/centos-release-ceph-jewel-1.0-1.el7.centos.noarch.rpm -O
+# rpm -i --root=/root/rpm_ocata /root/centos-release-*
+warning: /root/rpm_ocata/var/tmp/rpm-tmp.NUQUne: Header V3 RSA/SHA256 Signature, key ID f4a80eb5: NOKEY
+# # THEN change the mirrors in /root/rpm_ocata/etc/yum.repos.d/CentOS-*openstack*.repo to your local mirror of vault_centos_org_cloud
+# sed -i 's#///etc#///root/rpm_ocata/etc#' /root/rpm_ocata/etc/yum.repos.d/CentOS-*.repo
+# yum --installroot=/root/rpm_ocata/ install openstack-barbican openstack-cinder openstack-glance openstack-heat-common openstack-keystone openstack-magnum-common openstack-neutron openstack-nova
+```
+
+Testing a db upgrade:
+```
+
+```
+
+
 For Virtualenv: Creating the small upper-requirements.txt files:
 --------
 
