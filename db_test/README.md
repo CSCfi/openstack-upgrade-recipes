@@ -92,12 +92,21 @@ $ sudo -i
 # rpm -i --root=/root/rpm_ocata /root/centos-release-*
 warning: /root/rpm_ocata/var/tmp/rpm-tmp.NUQUne: Header V3 RSA/SHA256 Signature, key ID f4a80eb5: NOKEY
 # # THEN change the mirrors in /root/rpm_ocata/etc/yum.repos.d/CentOS-*openstack*.repo to your local mirror of vault_centos_org_cloud
+# # change the paths to the GPG keys:
 # sed -i 's#///etc#///root/rpm_ocata/etc#' /root/rpm_ocata/etc/yum.repos.d/CentOS-*.repo
 # yum --installroot=/root/rpm_ocata/ install openstack-barbican openstack-cinder openstack-glance openstack-heat-common openstack-keystone openstack-magnum-common openstack-neutron openstack-nova
 ```
 
-Testing a db upgrade:
+Using keystone-manage command:
 ```
+# keystone-manage --version
+10.0.3
+# mount --bind /dev /root/rpm_ocata/dev
+# chroot /root/rpm_ocata/
+# keystone-manage --version
+11.0.4
+# exit
+# umount /root/rpm_ocata/dev
 
 ```
 
