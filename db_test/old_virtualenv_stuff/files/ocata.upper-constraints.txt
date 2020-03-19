@@ -283,7 +283,7 @@ python-utils==2.0.1
 python-zaqarclient==1.4.0
 pytz==2016.10
 pyudev==0.21.0
-PyYAML==3.12
+PyYAML==5.1
 repoze.lru==0.7
 repoze.who==2.3
 requests==2.12.5
