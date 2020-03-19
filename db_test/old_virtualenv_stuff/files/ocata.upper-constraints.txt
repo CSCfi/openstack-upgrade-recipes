@@ -351,7 +351,7 @@ WebOb==1.6.3
 websocket-client==0.40.0
 websockify==0.8.0
 WebTest==2.0.24
-Werkzeug==0.11.15
+Werkzeug==0.15.3
 wrapt==1.10.8
 wsgi-intercept==1.4.1
 WSME==0.9.1
