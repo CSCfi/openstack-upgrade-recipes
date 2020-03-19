@@ -1,0 +1,157 @@
+---
+# This playbook will install and setup the Mitaka Virtual Env for the
+# database upgrade procedure. This should be run on a Liberty Api node
+# before shutdown.
+#
+# Thank You: https://gist.github.com/bhouse/7fb09a6d04e7dc02ee12
+
+- name: Setup Env for ocata database upgrade and use chroot to have several RPM dbs!
+  hosts: db_test_servers
+  connection: local
+  gather_facts: no
+  become: yes
+  vars_files: "ocata_vars.yml"
+
+  tasks:
+    - name: create rpm_installroot directory
+      file:
+        path: "/root/rpm_{{ osv }}/var/lib/rpm"
+        state: directory
+        recurse: yes
+      tags: install
+      register: reg_create_installroot
+
+    - name: rebuild rpmdb in rpm_installroot if we create the directory
+      command: rpm --rebuilddb --root=/root/rpm_{{ osv }}
+      when: reg_create_installroot is changed
+      tags: install
+
+    - name: install centos-release-7.6 in rpm_installroot
+      command: rpm -i --root=/root/rpm_{{ osv }} --nodeps http://mirror.centos.org/centos-7/7.6.1810/os/x86_64/Packages/centos-release-7-6.1810.2.el7.centos.x86_64.rpm
+      when: reg_create_installroot is changed
+
+    - name: Install pre-requisite packages in chroot
+      yum: 
+        name: "{{ yum_venv_reqs }}" 
+        state: installed
+        installroot: /root/rpm_{{osv}}
+      tags: install
+
+    - name: point to new location of RPM GPG keys inside chroot
+      shell: "sed -i 's#///etc#///root/rpm_{{ osv }}/etc#' /root/rpm_{{ osv }}/etc/yum.repos.d/CentOS-*.repo"
+      tags: install
+
+    # also add new GPG keys to rpm db?
+
+    - name: Install openstack RPMs in chroot
+      yum: 
+        name: "{{ openstack_rpms }}" 
+        state: installed
+        installroot: /root/rpm_{{osv}}
+      tags: install
+
+    - name: start and enable mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: create directory where we store configs
+      file:
+        path: "/root/rpm_{{ osv }}{{ virtualenv }}"
+        state: directory
+        recurse: yes
+      tags: config_files
+
+    - name: copy in almost blank config files
+      copy:
+        src: "{{ item.config_file }}"
+        dest: "/root/rpm_{{ osv }}{{ virtualenv }}/{{ item.config_file }}"
+      loop: "{{services }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: item.name != "barbican"
+      tags: config_files
+
+    - name: copy in almost blank config files for barbican
+      copy:
+        src: "barbican.conf"
+        dest: "/root/rpm_{{osv }}{{ item.config_file }}"
+      loop: "{{services }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: item.name == "barbican"
+      tags: config_files
+
+    - name: create directories in /var/log for the services
+      file:
+        path: /var/log/{{ item.name }}
+        state: directory
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
+      tags: logdirs
+
+    - name: This task will fail if there is no folder /var/lib/mysql/service-name. If it does - import all the databases listed in the services ansible variable and then run this playbook again
+      stat:
+        path: "/var/lib/mysql/{{ item.name }}"
+      register: reg_stat_mysql_databases
+      tags: db_check
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when:
+        - ( reg_stat_mysql_databases.stat.isdir is undefined or reg_stat_mysql_databases.stat.isdir == False)
+
+- name: setup chroot
+  hosts: db_test_servers
+  gather_facts: no
+  connection: local
+  vars_files: "ocata_vars.yml"
+  tasks:
+
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+
+    - name: unmount any existing /root/rpm_*/dev
+      shell: umount /root/rpm_*/dev
+      when: "'root' in reg_mounts.stdout"
+      ignore_errors: True
+
+    - name: mount --bind /dev /root/rpm_{{ osv }}/dev because things need /dev/random
+      command: mount --bind /dev /root/rpm_{{ osv }}/dev
+
+- name: chroot check versions
+  hosts: chroot_ocata
+  gather_facts: yes
+  vars_files: "ocata_vars.yml"
+  connection: chroot
+  tasks:
+
+    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+      changed_when: False
+      tags: [check_version]
+      when: item.name != "barbican"
+      register: reg_versions
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Use rpm installed version to Check that barbican can do a version check
+      shell: "{{ item.test_command }} {{ item.test_param }}"
+      changed_when: False
+      tags: [check_version]
+      when: item.name == "barbican"
+      register: reg_versions
+      loop: "{{ services }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+...

@@ -1,0 +1,107 @@
+---
+# This play updatets the Nova DB to rocky.
+
+- name: Upgrade to rocky using software in chroot_rocky
+  hosts: chroot_rocky
+  gather_facts: no
+  connection: chroot
+  vars_files: db_test/rocky_vars.yml
+  tasks:
+
+############
+#
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+      delegate_to: localhost
+      changed_when: False
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+      delegate_to: localhost
+
+    - name: fail if rpm_{{ osv }} is not in mounts - run the num_{{osv}}_yum.yml from db_test/ directory
+      assert:
+        that: "'rpm_{{ osv }}' in reg_mounts.stdout"
+      delegate_to: localhost
+
+    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ other_services }}"
+      register: reg_post3
+      tags: [check_version]
+      when: item.name != "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Use rpm installed version to Check that barbican can do a version check
+      shell: "{{ item.test_command }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ other_services }}"
+      register: reg_post4
+      tags: [check_version]
+      when: item.name == "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: print reg_post3
+      debug:
+        var: reg_post3
+        verbosity: 2
+    - name: print reg_post4
+      debug:
+        var: reg_post4
+        verbosity: 2
+
+# upgrade
+    - name: Use rpm installed version to Upgrade that all modules except barbican
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.upgrade_command }}"
+      changed_when: False
+      with_items: "{{ other_services }}"
+      tags: [check_version]
+      when: item.name != "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Use rpm installed version to Upgrade barbican
+      shell: "{{ item.test_command }} {{ item.upgrade_command }}"
+      changed_when: False
+      with_items: "{{ other_services }}"
+      tags: [check_version]
+      when: item.name == "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+# check version after
+
+    - name: Use rpm installed version to Check that all modules except barbican can do a version check
+      shell: "{{ item.test_command }} --config-file {{ virtualenv }}/{{ item.config_file }} {{ item.test_param }}"
+      changed_when: False
+      with_items: "{{ other_services }}"
+      register: reg_post1
+      tags: [check_version]
+      when: item.name != "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Use rpm installed version to Check that barbican can do a version check
+      shell: "{{ item.test_command }} {{ item.test_param }}"
+      changed_when: False
+      register: reg_post2
+      with_items: "{{ other_services }}"
+      tags: [check_version]
+      when: item.name == "barbican"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: print reg_post1
+      debug:
+        var: reg_post1
+        verbosity: 2
+    - name: print reg_post2
+      debug:
+        var: reg_post2
+        verbosity: 2

@@ -1,0 +1,140 @@
+---
+osv: "rocky"
+virtualenv: "/root/{{ osv }}"
+repodir: "/root/gitrepo_{{ osv }}"
+services:
+
+  - name: barbican
+    git_version: stable/rocky
+    # because barbican-db-manage in rocky does not have the --config file thingy..
+    config_file: "/etc/barbican/barbican.conf"
+    test_command: "barbican-db-manage"
+    test_param: "current"
+  - name: cinder
+    git_version: stable/rocky
+    config_file: "cinder.conf"
+    test_command: "cinder-manage"
+    test_param: "db version"
+  - name : glance
+    git_version: stable/rocky
+    config_file: "glance-api.conf"
+    test_command: "glance-manage"
+    test_param: "db version"
+  - name: heat
+    git_version: stable/rocky
+    config_file: "heat.conf"
+    test_command: "heat-manage"
+    test_param: "db_version"
+  - name : keystone
+    git_version: stable/rocky
+    config_file: "keystone.conf"
+    test_command: "keystone-manage"
+    test_param: "db_version"
+  - name : magnum
+    git_version: stable/rocky
+    config_file: "magnum.conf"
+    test_command: "magnum-db-manage"
+    test_param: "version"
+  - name: neutron
+    git_version: stable/rocky
+    config_file: "neutron.conf"
+    test_command: "neutron-db-manage"
+    test_param: "current"
+  - name: nova
+    git_version: stable/rocky
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "db version"
+
+other_services:
+  - name: barbican
+    # because barbican-db-manage in rocky does not have the --config file thingy..
+    config_file: "/etc/barbican/barbican.conf"
+    test_command: "barbican-db-manage"
+    test_param: "current"
+    upgrade_command: "upgrade"
+# Not needed in Rocky?
+#  - name: cinder1
+#    git_version: stable/rocky
+#    config_file: "cinder.conf"
+#    test_command: "cinder-manage"
+#    test_param: "db online_data_migrations"
+#    upgrade_command: "db sync"
+  - name: cinder2
+    git_version: stable/rocky
+    config_file: "cinder.conf"
+    test_command: "cinder-manage"
+    test_param: "db version"
+    upgrade_command: "db sync"
+  - name : glance
+    git_version: stable/rocky
+    config_file: "glance-api.conf"
+    test_command: "glance-manage"
+    test_param: "db version"
+    upgrade_command: "db_sync"
+  - name: heat
+    git_version: stable/rocky
+    config_file: "heat.conf"
+    test_command: "heat-manage"
+    test_param: "db_version"
+    upgrade_command: "db_sync"
+  - name : keystone
+    git_version: stable/rocky
+    config_file: "keystone.conf"
+    test_command: "keystone-manage"
+    test_param: "db_version"
+    upgrade_command: "db_sync"
+  - name : magnum
+    git_version: stable/rocky
+    config_file: "magnum.conf"
+    test_command: "magnum-db-manage"
+    test_param: "version"
+    upgrade_command: "upgrade"
+  - name: neutron
+    git_version: stable/rocky
+    config_file: "neutron.conf"
+    test_command: "neutron-db-manage"
+    test_param: "current"
+    upgrade_command: "upgrade heads"
+  - name: nova_1
+    git_version: stable/rocky
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "db version"
+    upgrade_command: "db sync"
+  - name: nova_api1
+    git_version: stable/rocky
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "api_db version"
+    upgrade_command: "api_db sync"
+  - name: nova_online_migrations
+    git_version: stable/rocky
+    config_file: "nova.conf"
+    test_command: "nova-manage"
+    test_param: "db version"
+    upgrade_command: "db online_data_migrations"
+
+
+yum_venv_reqs:
+#    - python2-pip
+    - git
+    - python-devel
+    - libffi-devel
+    - openssl-devel
+    - mariadb-devel
+    - python-virtualenv
+#    - mariadb-server
+    - MySQL-python
+    - "centos-release-openstack-{{ osv }}"
+openstack_rpms:
+    - openstack-barbican
+    - openstack-cinder
+    - openstack-glance
+    - openstack-heat-common
+    - openstack-keystone
+    - openstack-magnum-common
+    - openstack-neutron
+    - openstack-nova
+
+

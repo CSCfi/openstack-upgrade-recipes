@@ -1,0 +1,85 @@
+---
+
+- name: DB preparation before ocata - also purge! test DB went from 1.8GB to 680MB
+  hosts: api_servers[1]
+  connection: local
+  gather_facts: no
+  vars_files: 
+    - db_test/purges.yml
+    - db_test/ocata_vars.yml
+  tasks:
+
+## Minimal steps to setup cells
+
+## TODO: fix this in advance rather than syncing keystone, fixing it and syncing it again
+## Fix needed to one environment's keystone database:
+# 2019-03-07 14:31:30.375 7433 INFO migrate.versioning.api [-] 14 -> 15... 
+# 2019-03-07 14:31:30.387 7433 CRITICAL keystone [-] DBDataError: (pymysql.err.DataError) (1265, u"Data truncated for column 'domain_id' at row 14") [SQL: u'\nALTER TABLE user CHANGE COLUMN domain_id domain_id VARCHAR(64) NOT NULL']
+#
+## For some reason the cinder user when the domain_id column was created did not get its domain?..
+# mysql > use transactions plz; 
+# mysql > update user set domain_id = "default" where domain_id is NULL and id = "cinder";
+# mysql > commit plz;
+# Query OK, 1 row affected (0.00 sec)
+#
+
+###########
+#
+    - name: fail if there's a nova_cell0 database - maybe this script has been run already?
+      stat:
+        path: "/var/lib/mysql/nova_cell0"
+      register: reg_cell0
+      delegate_to: localhost
+      failed_when: reg_cell0.stat.exists == True
+
+    - name: list mounts
+      command: mount
+      no_log: True
+      register: reg_mounts
+      delegate_to: localhost
+      changed_when: False
+
+    - debug:
+        var: reg_mounts
+        verbosity: 1
+      delegate_to: localhost
+
+    - name: fail if rpm_{{ osv }} is not in mounts - run the num_{{osv}}_yum.yml from db_test/ directory
+      assert: 
+        that: "'rpm_{{ osv }}' in reg_mounts.stdout"
+      delegate_to: localhost
+
+# prep database
+#
+    - name: create nova_cell0 mysql database
+      tags: ['db_cell0']
+      shell: "echo 'create database nova_cell0;' | mysql"
+      register: reg_cell0_create
+      #rc 1 for "db already exists"
+      failed_when: ( reg_cell0_create.rc != 1) and (reg_cell0_create.rc != 0)
+
+- name: DB nova_cell mapping and db purging with standard openstack commands
+  hosts: chroot_ocata
+  connection: chroot
+  gather_facts: no
+  vars_files: 
+    - db_test/purges.yml
+
+  tasks:
+    - name: print
+      debug:
+        var: nova_cells
+    - name: setup for _testing_ only nova cells
+      tags: ['db_cells']
+      command: "{{ item }}"
+      loop: "{{ nova_cells }}"
+      register: reg_nova_cells
+      failed_when: (reg_nova_cells.rc != 0) and (reg_nova_cells.rc != 1) and (reg_nova_cells.rc != 2)
+
+    - name: purge deleted data from dbs - see db_test/purges.yml - purging nova is not included
+      tags: ['db_purge']
+      command: "{{ item }}"
+      with_items: "{{ db_purges }}"
+      register: reg_db_purges
+      failed_when: (reg_db_purges.rc != 0) and (reg_db_purges.rc != 1)
+
