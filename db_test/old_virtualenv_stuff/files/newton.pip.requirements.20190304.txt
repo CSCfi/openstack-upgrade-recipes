@@ -119,7 +119,7 @@ pika-pool==0.1.3
 ply==3.11
 positional==1.2.1
 prettytable==0.7.2
-psutil==1.2.1
+psutil==5.6.6
 pyasn1==0.4.4
 pyasn1-modules==0.2.2
 pycadf==2.8.0
