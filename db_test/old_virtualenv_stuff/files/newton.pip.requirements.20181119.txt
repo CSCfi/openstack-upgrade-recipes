@@ -133,7 +133,7 @@ pyOpenSSL==18.0.0
 pyparsing==2.3.0
 pyperclip==1.7.0
 pyroute2==0.5.3
-pysaml2==4.0.2
+pysaml2==5.0.0
 python-barbicanclient==4.8.0
 python-ceilometerclient==2.9.0
 python-cinderclient==3.6.1

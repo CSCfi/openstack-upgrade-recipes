@@ -110,7 +110,7 @@ pycrypto==2.6.1
 pyinotify==0.9.6
 pyOpenSSL==17.0.0
 pyparsing==2.2.0
-pysaml2==4.0.2
+pysaml2==5.0.0
 python-barbicanclient==4.2.0
 python-ceilometerclient==2.8.1
 python-cinderclient==2.0.1
