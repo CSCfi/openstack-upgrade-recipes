@@ -34,7 +34,7 @@ glance-store==0.20.0
 google-api-python-client==1.6.2
 greenlet==0.4.12
 heat==7.0.3
-httplib2==0.10.3
+httplib2==0.18.0
 idna==2.5
 ipaddress==1.0.18
 iso8601==0.1.11
